@@ -6,7 +6,7 @@ CONFIG ?= config.txt
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
-	$(PYTHON) -m pip install -e .
+	$(PYTHON) -m pip install .
 	$(PYTHON) -m pip install flake8 mypy
 
 run:

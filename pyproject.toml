@@ -1,0 +1,14 @@
+[build-system]
+requires = []
+build-backend = "mazegen.build_backend"
+backend-path = ["."]
+
+[project]
+name = "mazegen-a-maze-ing"
+version = "1.0.0"
+description = "Reusable maze generation package for the 42 A-Maze-ing project."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "luispais" },
+]

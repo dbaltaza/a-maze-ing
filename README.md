@@ -1,4 +1,4 @@
-*This project has been created as part of the 42 curriculum by <login1>, <login2>.*
+*This project has been created as part of the 42 curriculum by luispais.*
 
 # A-Maze-ing
 
@@ -56,15 +56,23 @@ Reason:
 
 ---
 
-## How To Run
+## Instructions
+### Run
 ```bash
 python3 a_maze_ing.py config.txt
 ```
 
-Also via Makefile:
+### Makefile
 ```bash
 make run
 ```
+
+Available targets:
+- `make install`
+- `make run`
+- `make debug`
+- `make clean`
+- `make lint`
 
 ---
 
@@ -120,6 +128,17 @@ ALGO=dfs
 5. shortest path string (`NESW...`)
 
 All lines end with `\n`.
+
+---
+
+## Algorithm Choice
+- Main generation algorithm: iterative DFS backtracker.
+- Why this algorithm:
+  - naturally builds perfect mazes (spanning tree).
+  - deterministic with seed-driven `random.Random`.
+  - simple to reason about and validate.
+- Non-perfect mode:
+  - starts from DFS result, then opens extra walls (`add_loops`) to create cycles.
 
 ---
 
@@ -582,7 +601,7 @@ Reason this exists:
 ---
 
 ## Makefile Decisions
-- `install`: pip upgrade + editable install + lint tools.
+- `install`: pip upgrade + package install + lint tools.
 - `run`: canonical command.
 - `debug`: launch with `pdb`.
 - `clean`: remove caches/build artifacts.
@@ -606,6 +625,37 @@ AI was used to:
 - draft documentation and line-order reasoning.
 
 All produced code and explanations were reviewed and adapted to this codebase and assignment constraints.
+
+---
+
+## Team And Project Management
+- Roles:
+  - Dev A: `mazegen/*` reusable engine and packaging backend.
+  - Dev B: `app/*`, `a_maze_ing.py`, config handling, output writer, renderers, Makefile, README.
+- Planned workflow:
+  - first lock public generator API contract,
+  - then implement parser/writer/UI against that contract,
+  - then integrate and validate.
+- What worked well:
+  - strict scope split avoided merge conflicts.
+  - protocol-based app interfaces kept modules decoupled.
+- What could be improved:
+  - full-repo lint/style harmonization across both scopes.
+  - earlier integration tests for small-maze edge cases.
+- Tools used:
+  - Python 3.10+
+  - flake8
+  - mypy
+  - Makefile automation
+  - Git
+
+---
+
+## Resources
+- Python docs: [pathlib](https://docs.python.org/3/library/pathlib.html), [dataclasses](https://docs.python.org/3/library/dataclasses.html), [curses](https://docs.python.org/3/library/curses.html)
+- Packaging docs: [PEP 517](https://peps.python.org/pep-0517/), [PyPA packaging guide](https://packaging.python.org/)
+- Graph/maze references: DFS backtracker and BFS shortest-path tutorials from standard algorithm references.
+- Subject PDF in this repository: `subject.pdf`
 
 ---
 

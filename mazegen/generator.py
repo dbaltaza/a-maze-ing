@@ -69,7 +69,13 @@ class MazeGenerator:
         max_attempts = 1000
         for _ in range(max_attempts):
             maze = Maze(self._width, self._height)
-            blocked = maze.stamp_42(forbidden={self._entry, self._exit})
+            try:
+                blocked = maze.stamp_42(forbidden={self._entry, self._exit})
+            except ValueError as exc:
+                if "too small for 42 stamp" in str(exc):
+                    blocked = set()
+                else:
+                    raise
             generate_perfect_dfs(maze, rng, blocked, start=self._entry)
             if not self._perfect:
                 add_loops(maze, rng, blocked)

@@ -28,12 +28,16 @@ def _build_generator(cfg: MazeConfig) -> MazeGenerator:
 
 def _generate_and_write(cfg: MazeConfig, generator: MazeGenerator) -> None:
     """Generate maze data and write output file."""
+    if cfg.width < 7 or cfg.height < 5:
+        warning = (
+            "Error: maze too small for visible 42 pattern "
+            "(minimum is 7x5). Proceeding without it."
+        )
+        print(warning, file=sys.stderr)
+
     try:
         generator.generate()
     except (ValueError, RuntimeError) as exc:
-        if "too small for 42 stamp" in str(exc):
-            warning = "Warning: maze too small for visible 42 pattern."
-            print(warning, file=sys.stderr)
         raise RuntimeError(f"maze generation failed: {exc}") from exc
 
     try:
