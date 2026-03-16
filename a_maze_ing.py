@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Callable
 
 from app.errors import ConfigError, OutputError, RenderError
 from app.parser import MazeConfig, load_config
@@ -26,7 +27,11 @@ def _build_generator(cfg: MazeConfig) -> MazeGenerator:
     )
 
 
-def _generate_and_write(cfg: MazeConfig, generator: MazeGenerator) -> None:
+def _generate_and_write(
+    cfg: MazeConfig,
+    generator: MazeGenerator,
+    on_step: Callable[[], None] | None = None,
+) -> None:
     """Generate maze data and write output file."""
     if cfg.width < 7 or cfg.height < 5:
         warning = (
@@ -36,7 +41,7 @@ def _generate_and_write(cfg: MazeConfig, generator: MazeGenerator) -> None:
         print(warning, file=sys.stderr)
 
     try:
-        generator.generate()
+        generator.generate_with_callback(on_step=on_step)
     except (ValueError, RuntimeError) as exc:
         raise RuntimeError(f"maze generation failed: {exc}") from exc
 
@@ -59,8 +64,10 @@ def main(argv: list[str] | None = None) -> int:
         generator = _build_generator(cfg)
         _generate_and_write(cfg, generator)
 
-        def regenerate_and_save() -> None:
-            _generate_and_write(cfg, generator)
+        def regenerate_and_save(
+            on_step: Callable[[], None] | None = None,
+        ) -> None:
+            _generate_and_write(cfg, generator, on_step=on_step)
 
         try:
             run_curses_ui(cfg, generator, regenerate=regenerate_and_save)

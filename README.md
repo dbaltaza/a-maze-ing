@@ -19,7 +19,7 @@ We need a program that:
 2. Generates a valid maze with deterministic seed support.
 3. Exports maze walls as hex rows.
 4. Exports entry, exit, shortest path (`NESW`).
-5. Displays maze interactively (`r`, `p`, `c`, `q`).
+5. Displays maze interactively (`r`, `g`, `s`, `p`, `c`, `q`).
 6. Never crashes with ugly tracebacks on expected user errors.
 
 ### 2) Constraints that shape the design
@@ -357,6 +357,8 @@ Line-order logic:
    - `p`: toggle path and status
    - `c`: cycle wall color and status
    - `r`: call callback; update status success/failure
+  - `g`: animate maze generation
+  - `s`: animate shortest-path reveal
 
 ### `run_curses_ui(cfg, generator, regenerate=None)`
 - Imports curses safely.
@@ -662,6 +664,6 @@ All produced code and explanations were reviewed and adapted to this codebase an
 ## Quick Self-Check List
 1. `python3 a_maze_ing.py config.txt` runs.
 2. Output file has exact required structure.
-3. Curses keys: `r`, `p`, `c`, `q`.
+3. Curses keys: `r`, `g`, `s`, `p`, `c`, `q`.
 4. Curses failure falls back to ASCII.
 5. Invalid config returns friendly `Error: ...` and exit code `1`.
