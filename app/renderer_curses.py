@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 
@@ -32,7 +33,8 @@ class GeneratorLike(Protocol):
 class _UiState:
     show_path: bool = False
     color_index: int = 0
-    status: str = "Keys: r regenerate, p path, c color, q quit"
+    animated_path: set[tuple[int, int]] | None = None
+    status: str = "Keys: r regenerate, g animate-gen, s animate-solve, p path, c color, q quit"
 
 
 def _path_cells(entry: tuple[int, int], moves: str) -> set[tuple[int, int]]:
@@ -47,6 +49,21 @@ def _path_cells(entry: tuple[int, int], moves: str) -> set[tuple[int, int]]:
         x += dx
         y += dy
         cells.add((x, y))
+    return cells
+
+
+def _path_cell_sequence(entry: tuple[int, int], moves: str) -> list[tuple[int, int]]:
+    x, y = entry
+    cells: list[tuple[int, int]] = [(x, y)]
+    deltas = {"N": (0, -1), "E": (1, 0), "S": (0, 1), "W": (-1, 0)}
+    for step in moves:
+        delta = deltas.get(step)
+        if delta is None:
+            continue
+        dx, dy = delta
+        x += dx
+        y += dy
+        cells.append((x, y))
     return cells
 
 
@@ -82,11 +99,12 @@ def _draw_maze(
     path_pair = curses.color_pair(7) if curses.has_colors() else 0
 
     blocked = generator.blocked_cells
-    path = (
-        _path_cells(cfg.entry, generator.path_moves())
-        if state.show_path
-        else set()
-    )
+    if state.animated_path is not None:
+        path = state.animated_path
+    elif state.show_path:
+        path = _path_cells(cfg.entry, generator.path_moves())
+    else:
+        path = set()
 
     for y in range(0, cfg.height * 2 + 1, 2):
         for x in range(0, cfg.width * 2 + 1, 2):
@@ -153,7 +171,7 @@ def _loop(
     stdscr: Any,
     cfg: MazeConfig,
     generator: GeneratorLike,
-    regenerate: Callable[[], None] | None,
+    regenerate: Callable[[Callable[[], None] | None], None] | None,
 ) -> None:
     import curses
 
@@ -165,12 +183,51 @@ def _loop(
     state = _UiState()
     max_color_index = 4
 
+    def _animate_generation() -> None:
+        if regenerate is None:
+            state.status = "Regenerate unavailable"
+            return
+
+        state.animated_path = None
+        state.show_path = False
+        state.status = "Animating generation..."
+        frame_counter = 0
+
+        def on_step() -> None:
+            nonlocal frame_counter
+            frame_counter += 1
+            if frame_counter % 2 == 0:
+                _draw_maze(stdscr, cfg, generator, state)
+                time.sleep(0.008)
+
+        try:
+            regenerate(on_step)
+            _draw_maze(stdscr, cfg, generator, state)
+            state.status = "Generation animation complete"
+        except Exception as exc:  # pragma: no cover - runtime UI safeguard
+            state.status = f"Animated generate failed: {exc}"
+
+    def _animate_solve() -> None:
+        state.show_path = False
+        state.animated_path = set()
+        state.status = "Animating solve path..."
+        try:
+            sequence = _path_cell_sequence(cfg.entry, generator.path_moves())
+            for cell in sequence:
+                state.animated_path.add(cell)
+                _draw_maze(stdscr, cfg, generator, state)
+                time.sleep(0.025)
+            state.status = "Solve animation complete"
+        except Exception as exc:  # pragma: no cover - runtime UI safeguard
+            state.status = f"Solve animation failed: {exc}"
+
     while True:
         _draw_maze(stdscr, cfg, generator, state)
         key = stdscr.getch()
         if key in (ord("q"), ord("Q")):
             return
         if key in (ord("p"), ord("P")):
+            state.animated_path = None
             state.show_path = not state.show_path
             state.status = (
                 f"Path {'enabled' if state.show_path else 'disabled'}"
@@ -185,16 +242,23 @@ def _loop(
                 state.status = "Regenerate unavailable"
                 continue
             try:
-                regenerate()
+                state.animated_path = None
+                regenerate(None)
                 state.status = "Maze regenerated"
             except Exception as exc:  # pragma: no cover - runtime UI safeguard
                 state.status = f"Regenerate failed: {exc}"
+            continue
+        if key in (ord("g"), ord("G")):
+            _animate_generation()
+            continue
+        if key in (ord("s"), ord("S")):
+            _animate_solve()
 
 
 def run_curses_ui(
     cfg: MazeConfig,
     generator: GeneratorLike,
-    regenerate: Callable[[], None] | None = None,
+    regenerate: Callable[[Callable[[], None] | None], None] | None = None,
 ) -> None:
     """Run the curses UI, raising RenderError if initialization fails."""
     try:

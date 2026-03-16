@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from typing import Callable
 
 from .algorithms import add_loops, generate_perfect_dfs
 from .maze import Maze
@@ -60,8 +61,18 @@ class MazeGenerator:
         return self._maze
 
     def generate(self) -> None:
+        self.generate_with_callback()
+
+    def generate_with_callback(
+        self,
+        on_step: Callable[[], None] | None = None,
+        *,
+        step_stride: int = 1,
+    ) -> None:
         if self._algo != "dfs":
             raise ValueError(f"unsupported algo: {self._algo}")
+        if step_stride <= 0:
+            raise ValueError("step_stride must be > 0")
 
         rng = random.Random(self._seed)
         self._shortest_path = None
@@ -76,9 +87,32 @@ class MazeGenerator:
                     blocked = set()
                 else:
                     raise
-            generate_perfect_dfs(maze, rng, blocked, start=self._entry)
+
+            self._maze = maze
+            self._blocked = blocked
+
+            step_count = 0
+
+            def step_callback() -> None:
+                nonlocal step_count
+                step_count += 1
+                if on_step is None:
+                    return
+                if step_count % step_stride == 0:
+                    on_step()
+
+            generate_perfect_dfs(
+                maze,
+                rng,
+                blocked,
+                start=self._entry,
+                on_carve=step_callback,
+            )
             if not self._perfect:
-                add_loops(maze, rng, blocked)
+                add_loops(maze, rng, blocked, on_open=step_callback)
+
+            if on_step is not None:
+                on_step()
 
             if validate_all(
                 maze=maze,

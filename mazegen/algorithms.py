@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from typing import Callable
 
 from .maze import Maze
 
@@ -12,6 +13,7 @@ def generate_perfect_dfs(
     rng: random.Random,
     blocked: set[tuple[int, int]],
     start: tuple[int, int],
+    on_carve: Callable[[], None] | None = None,
 ) -> None:
     """Generate a spanning tree over all non-blocked cells using DFS backtracking."""
     if start in blocked:
@@ -35,6 +37,8 @@ def generate_perfect_dfs(
 
         direction, nx, ny = rng.choice(candidates)
         maze.open_wall((x, y), direction)
+        if on_carve is not None:
+            on_carve()
         visited.add((nx, ny))
         stack.append((nx, ny))
 
@@ -48,6 +52,7 @@ def add_loops(
     rng: random.Random,
     blocked: set[tuple[int, int]],
     ratio: float = 0.10,
+    on_open: Callable[[], None] | None = None,
 ) -> None:
     """Open extra closed internal walls to create cycles."""
     candidates: list[tuple[tuple[int, int], str]] = []
@@ -71,3 +76,5 @@ def add_loops(
     open_count = max(1, int(len(candidates) * ratio))
     for (cell, direction) in candidates[:open_count]:
         maze.open_wall(cell, direction)
+        if on_open is not None:
+            on_open()
