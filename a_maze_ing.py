@@ -54,6 +54,53 @@ def _generate_and_write(
         raise OutputError(f"invalid generated data: {exc}") from exc
 
 
+def _announce_renderer(name: str, *, detail: str | None = None) -> None:
+    message = f"Renderer: {name}"
+    if detail:
+        message = f"{message} ({detail})"
+    print(message, file=sys.stderr)
+
+
+def _run_renderer(
+    cfg: MazeConfig,
+    generator: MazeGenerator,
+    regenerate_and_save: Callable[[Callable[[], None] | None], None],
+) -> None:
+    requested = cfg.renderer
+
+    if requested == "ascii":
+        _announce_renderer("ascii", detail="requested")
+        render_ascii(cfg, generator, show_path=False)
+        return
+
+    if requested == "curses":
+        _announce_renderer("curses", detail="requested")
+        run_curses_ui(
+            cfg,
+            generator,
+            regenerate=regenerate_and_save,
+            generate_delay_ms=cfg.generate_delay_ms,
+            solve_delay_ms=cfg.solve_delay_ms,
+        )
+        return
+
+    try:
+        _announce_renderer("curses", detail="auto")
+        run_curses_ui(
+            cfg,
+            generator,
+            regenerate=regenerate_and_save,
+            generate_delay_ms=cfg.generate_delay_ms,
+            solve_delay_ms=cfg.solve_delay_ms,
+        )
+        return
+    except RenderError as exc:
+        print(f"Warning: curses unavailable: {exc}", file=sys.stderr)
+
+    _announce_renderer("ascii", detail="auto fallback")
+    render_ascii(cfg, generator, show_path=False)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Application entrypoint."""
     args = sys.argv[1:] if argv is None else argv[1:]
@@ -69,14 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         ) -> None:
             _generate_and_write(cfg, generator, on_step=on_step)
 
-        try:
-            run_curses_ui(cfg, generator, regenerate=regenerate_and_save)
-        except RenderError as exc:
-            print(
-                f"Warning: {exc}. Falling back to ASCII view.",
-                file=sys.stderr,
-            )
-            render_ascii(cfg, generator, show_path=False)
+        _run_renderer(cfg, generator, regenerate_and_save)
     except (
         ConfigError,
         OutputError,

@@ -8,8 +8,15 @@ from pathlib import Path
 from .errors import ConfigError
 
 _REQUIRED_KEYS = {"WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE", "PERFECT"}
-_OPTIONAL_KEYS = {"SEED", "ALGO"}
+_OPTIONAL_KEYS = {
+    "SEED",
+    "ALGO",
+    "RENDERER",
+    "GENERATE_DELAY_MS",
+    "SOLVE_DELAY_MS",
+}
 _KNOWN_KEYS = _REQUIRED_KEYS | _OPTIONAL_KEYS
+_RENDERERS = {"auto", "ascii", "curses"}
 
 
 @dataclass(frozen=True)
@@ -24,6 +31,9 @@ class MazeConfig:
     perfect: bool
     seed: int | None = None
     algo: str = "dfs"
+    renderer: str = "auto"
+    generate_delay_ms: int = 8
+    solve_delay_ms: int = 25
 
 
 def _parse_int(value: str, key: str, *, line_no: int | None = None) -> int:
@@ -155,6 +165,35 @@ def load_config(path: str | Path) -> MazeConfig:
     else:
         algo = "dfs"
 
+    if "RENDERER" in raw_values:
+        renderer_raw, renderer_line = raw_values["RENDERER"]
+        renderer = renderer_raw.strip().lower() or "auto"
+        if renderer not in _RENDERERS:
+            raise ConfigError(
+                f"RENDERER must be one of {', '.join(sorted(_RENDERERS))}"
+                f" on line {renderer_line}"
+            )
+    else:
+        renderer = "auto"
+
+    generate_delay_ms = 8
+    if "GENERATE_DELAY_MS" in raw_values:
+        delay_raw, delay_line = raw_values["GENERATE_DELAY_MS"]
+        generate_delay_ms = _parse_int(
+            delay_raw, "GENERATE_DELAY_MS", line_no=delay_line
+        )
+        if generate_delay_ms < 0:
+            raise ConfigError("GENERATE_DELAY_MS must be >= 0")
+
+    solve_delay_ms = 25
+    if "SOLVE_DELAY_MS" in raw_values:
+        delay_raw, delay_line = raw_values["SOLVE_DELAY_MS"]
+        solve_delay_ms = _parse_int(
+            delay_raw, "SOLVE_DELAY_MS", line_no=delay_line
+        )
+        if solve_delay_ms < 0:
+            raise ConfigError("SOLVE_DELAY_MS must be >= 0")
+
     return MazeConfig(
         width=width,
         height=height,
@@ -164,4 +203,7 @@ def load_config(path: str | Path) -> MazeConfig:
         perfect=perfect,
         seed=seed,
         algo=algo,
+        renderer=renderer,
+        generate_delay_ms=generate_delay_ms,
+        solve_delay_ms=solve_delay_ms,
     )
