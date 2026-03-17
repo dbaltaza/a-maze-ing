@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 from .errors import ConfigError
 
@@ -16,6 +17,9 @@ _OPTIONAL_KEYS = {
 }
 _KNOWN_KEYS = _REQUIRED_KEYS | _OPTIONAL_KEYS
 _RENDERERS = {"auto", "ascii", "curses"}
+_INT_MIN = -(2**31)
+_INT_MAX = 2**31 - 1
+_INT_PATTERN = re.compile(r"^[+-]?\d+$")
 
 
 @dataclass(frozen=True)
@@ -36,11 +40,18 @@ class MazeConfig:
 
 def _parse_int(value: str, key: str, *, line_no: int | None = None) -> int:
     """Parse an integer configuration value."""
+    raw = value.strip()
+    where = f" on line {line_no}" if line_no is not None else ""
+    if not _INT_PATTERN.fullmatch(raw):
+        raise ConfigError(f"{key} must be an integer{where}")
     try:
-        parsed = int(value)
+        parsed = int(raw)
     except ValueError as exc:
-        where = f" on line {line_no}" if line_no is not None else ""
         raise ConfigError(f"{key} must be an integer{where}") from exc
+    if parsed < _INT_MIN or parsed > _INT_MAX:
+        raise ConfigError(
+            f"{key} must be between {_INT_MIN} and {_INT_MAX}{where}"
+        )
     return parsed
 
 

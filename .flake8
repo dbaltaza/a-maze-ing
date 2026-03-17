@@ -3,6 +3,7 @@ exclude =
     .git,
     .idea,
     .venv,
+    venv,
     __pycache__,
     build,
     dist,
