@@ -412,8 +412,8 @@ This project is open source and available under the MIT License.
 ## 🙏 Acknowledgments
 
 ### Team
-- **luispais** - Maze engine (`mazegen/`) and core algorithms
-- **dbaltaza** - Application layer (`app/`) and UI/UX
+- **dbaltaza** - Maze engine (`mazegen/`) and core algorithms
+- **luispais** - Application layer (`app/`) and UI/UX
 
 ### Resources
 - [Python Documentation](https://docs.python.org/3/)
