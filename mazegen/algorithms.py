@@ -15,7 +15,7 @@ def generate_perfect_dfs(
     start: tuple[int, int],
     on_carve: Callable[[], None] | None = None,
 ) -> None:
-    """Generate a spanning tree over all non-blocked cells using DFS backtracking."""
+    """Generate a spanning tree over all non-blocked cells."""
     if start in blocked:
         raise ValueError("start cannot be blocked")
 

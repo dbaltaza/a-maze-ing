@@ -13,6 +13,7 @@ def bfs_shortest_path(
     start: tuple[int, int],
     goal: tuple[int, int],
 ) -> list[tuple[int, int]]:
+    """Return the shortest valid path from start to goal with BFS."""
     if start in blocked or goal in blocked:
         return []
 
@@ -45,6 +46,7 @@ def bfs_shortest_path(
 
 
 def path_to_moves(path: list[tuple[int, int]]) -> str:
+    """Convert a coordinate path into NESW letters."""
     if len(path) < 2:
         return ""
 
@@ -58,6 +60,8 @@ def path_to_moves(path: list[tuple[int, int]]) -> str:
     for (x1, y1), (x2, y2) in zip(path, path[1:]):
         delta = (x2 - x1, y2 - y1)
         if delta not in move_lookup:
-            raise ValueError(f"invalid path step from {(x1, y1)} to {(x2, y2)}")
+            raise ValueError(
+                f"invalid path step from {(x1, y1)} to {(x2, y2)}"
+            )
         moves.append(move_lookup[delta])
     return "".join(moves)

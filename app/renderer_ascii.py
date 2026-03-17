@@ -38,7 +38,13 @@ _PATH_SEGMENTS = {
 }
 
 
+def _mode_label(perfect: bool) -> str:
+    """Return a human-readable label for the maze mode."""
+    return "PERFECT TREE" if perfect else "NOT PERFECT"
+
+
 def _boxed_lines(title: str, body: list[str]) -> list[str]:
+    """Wrap a title and body lines in a Unicode box."""
     width = max(len(title), *(len(line) for line in body))
     lines = [f"{_TL}{_H_WALL * (width + 2)}{_TR}"]
     lines.append(f"{_V_WALL} {title.ljust(width)} {_V_WALL}")
@@ -49,6 +55,7 @@ def _boxed_lines(title: str, body: list[str]) -> list[str]:
 
 
 def _junction_char(row: int, col: int, rows: int, cols: int) -> str:
+    """Return the frame character for a grid intersection."""
     top = row == 0
     bottom = row == rows - 1
     left = col == 0
@@ -101,7 +108,11 @@ def _path_cells(entry: tuple[int, int], moves: str) -> set[tuple[int, int]]:
     return cells
 
 
-def _path_sequence(entry: tuple[int, int], moves: str) -> list[tuple[int, int]]:
+def _path_sequence(
+    entry: tuple[int, int],
+    moves: str,
+) -> list[tuple[int, int]]:
+    """Expand an NESW move string into an ordered cell sequence."""
     x, y = entry
     cells: list[tuple[int, int]] = [(x, y)]
     deltas = {"N": (0, -1), "E": (1, 0), "S": (0, 1), "W": (-1, 0)}
@@ -115,7 +126,10 @@ def _path_sequence(entry: tuple[int, int], moves: str) -> list[tuple[int, int]]:
     return cells
 
 
-def _path_directions(sequence: list[tuple[int, int]]) -> dict[tuple[int, int], set[str]]:
+def _path_directions(
+    sequence: list[tuple[int, int]],
+) -> dict[tuple[int, int], set[str]]:
+    """Map each path cell to the directions it connects to."""
     direction_map: dict[tuple[int, int], set[str]] = {}
     move_lookup = {
         (0, -1): "N",
@@ -183,12 +197,16 @@ def build_ascii_lines(
             if (x, y) in blocked:
                 for fill_y in range(1, CELL_H + 1):
                     for fill_x in range(1, CELL_W + 1):
-                        canvas[cell_top + fill_y][cell_left + fill_x] = _BLOCKED
+                        canvas[
+                            cell_top + fill_y
+                        ][cell_left + fill_x] = _BLOCKED
             elif (x, y) in path:
                 dirs = path_dirs.get((x, y), set())
                 path_char = _PATH_SEGMENTS.get(frozenset(dirs), "•")
                 for fill_y in range(1, CELL_H + 1):
-                    canvas[cell_top + fill_y][cx] = "│" if path_char == "│" else " "
+                    canvas[cell_top + fill_y][cx] = (
+                        "│" if path_char == "│" else " "
+                    )
                 for fill_x in range(1, CELL_W + 1):
                     if path_char == "─":
                         canvas[cy][cell_left + fill_x] = "─"
@@ -236,13 +254,28 @@ def render_ascii(
     """Return and print a styled terminal representation of the maze."""
     maze_lines = build_ascii_lines(cfg, generator, show_path=show_path)
     path_moves = generator.path_moves()
+    mode_label = _mode_label(cfg.perfect)
+    entry_text = f"entry  {cfg.entry[0]},{cfg.entry[1]}"
+    exit_text = f"exit   {cfg.exit[0]},{cfg.exit[1]}"
+    seed_text = cfg.seed if cfg.seed is not None else "random"
     header = _boxed_lines(
         "A-Maze-ing",
         [
-            f"size   {cfg.width}x{cfg.height}    mode   {'perfect' if cfg.perfect else 'loopy'}",
-            f"entry  {cfg.entry[0]},{cfg.entry[1]}    exit   {cfg.exit[0]},{cfg.exit[1]}",
-            f"seed   {cfg.seed if cfg.seed is not None else 'random'}    path   {len(path_moves)} moves",
+            f"size   {cfg.width}x{cfg.height}    mode   {mode_label}",
+            f"{entry_text}    {exit_text}",
+            f"seed   {seed_text}    path   {len(path_moves)} moves",
         ],
+    )
+    mode_notice = (
+        _boxed_lines(
+            "Mode Alert",
+            [
+                "NOT PERFECT MAZE",
+                "extra loops are enabled",
+            ],
+        )
+        if not cfg.perfect
+        else []
     )
     legend = _boxed_lines(
         "Legend",
@@ -251,6 +284,15 @@ def render_ascii(
             "▓ painted 42 mask   renderer ascii fallback",
         ],
     )
-    rendered = "\n".join([*header, "", *maze_lines, "", *legend])
+    rendered = "\n".join(
+        [
+            *header,
+            *(["", *mode_notice] if mode_notice else []),
+            "",
+            *maze_lines,
+            "",
+            *legend,
+        ]
+    )
     print(rendered)
     return rendered

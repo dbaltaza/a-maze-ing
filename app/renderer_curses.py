@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Protocol, cast
 
 from .errors import RenderError
 from .parser import MazeConfig
@@ -34,6 +34,8 @@ class GeneratorLike(Protocol):
 
 @dataclass
 class _UiState:
+    """Mutable UI state shared across redraws and key handlers."""
+
     show_path: bool = False
     color_index: int = 0
     animated_path: set[tuple[int, int]] | None = None
@@ -55,6 +57,11 @@ _PATH_SEGMENTS = {
 }
 
 
+def _mode_label(perfect: bool) -> str:
+    """Return a human-readable label for the maze mode."""
+    return "PERFECT TREE" if perfect else "NOT PERFECT"
+
+
 def _frame_char(
     row_index: int,
     col_index: int,
@@ -62,27 +69,28 @@ def _frame_char(
     col_count: int,
     curses_mod: Any,
 ) -> int:
+    """Return the border glyph for one grid intersection."""
     top = row_index == 0
     bottom = row_index == row_count - 1
     left = col_index == 0
     right = col_index == col_count - 1
     if top and left:
-        return curses_mod.ACS_ULCORNER
+        return cast(int, curses_mod.ACS_ULCORNER)
     if top and right:
-        return curses_mod.ACS_URCORNER
+        return cast(int, curses_mod.ACS_URCORNER)
     if bottom and left:
-        return curses_mod.ACS_LLCORNER
+        return cast(int, curses_mod.ACS_LLCORNER)
     if bottom and right:
-        return curses_mod.ACS_LRCORNER
+        return cast(int, curses_mod.ACS_LRCORNER)
     if top:
-        return curses_mod.ACS_TTEE
+        return cast(int, curses_mod.ACS_TTEE)
     if bottom:
-        return curses_mod.ACS_BTEE
+        return cast(int, curses_mod.ACS_BTEE)
     if left:
-        return curses_mod.ACS_LTEE
+        return cast(int, curses_mod.ACS_LTEE)
     if right:
-        return curses_mod.ACS_RTEE
-    return curses_mod.ACS_PLUS
+        return cast(int, curses_mod.ACS_RTEE)
+    return cast(int, curses_mod.ACS_PLUS)
 
 
 def _draw_panel(
@@ -94,13 +102,19 @@ def _draw_panel(
     border_attr: int,
     text_attr: int,
 ) -> None:
+    """Draw a bordered text panel."""
     import curses
 
     height = len(lines) + 2
     stdscr.addch(top, left, curses.ACS_ULCORNER, border_attr)
     stdscr.addch(top, left + width - 1, curses.ACS_URCORNER, border_attr)
     stdscr.addch(top + height - 1, left, curses.ACS_LLCORNER, border_attr)
-    stdscr.addch(top + height - 1, left + width - 1, curses.ACS_LRCORNER, border_attr)
+    stdscr.addch(
+        top + height - 1,
+        left + width - 1,
+        curses.ACS_LRCORNER,
+        border_attr,
+    )
     for x in range(left + 1, left + width - 1):
         stdscr.addch(top, x, curses.ACS_HLINE, border_attr)
         stdscr.addch(top + height - 1, x, curses.ACS_HLINE, border_attr)
@@ -109,10 +123,17 @@ def _draw_panel(
         stdscr.addch(y, left + width - 1, curses.ACS_VLINE, border_attr)
     inner_w = width - 2
     for index, line in enumerate(lines, start=1):
-        stdscr.addnstr(top + index, left + 1, line.ljust(inner_w), inner_w, text_attr)
+        stdscr.addnstr(
+            top + index,
+            left + 1,
+            line.ljust(inner_w),
+            inner_w,
+            text_attr,
+        )
 
 
 def _path_cells(entry: tuple[int, int], moves: str) -> set[tuple[int, int]]:
+    """Expand an NESW move string into visited cells."""
     x, y = entry
     cells: set[tuple[int, int]] = {(x, y)}
     deltas = {"N": (0, -1), "E": (1, 0), "S": (0, 1), "W": (-1, 0)}
@@ -127,7 +148,11 @@ def _path_cells(entry: tuple[int, int], moves: str) -> set[tuple[int, int]]:
     return cells
 
 
-def _path_cell_sequence(entry: tuple[int, int], moves: str) -> list[tuple[int, int]]:
+def _path_cell_sequence(
+    entry: tuple[int, int],
+    moves: str,
+) -> list[tuple[int, int]]:
+    """Expand an NESW move string into an ordered cell sequence."""
     x, y = entry
     cells: list[tuple[int, int]] = [(x, y)]
     deltas = {"N": (0, -1), "E": (1, 0), "S": (0, 1), "W": (-1, 0)}
@@ -142,7 +167,10 @@ def _path_cell_sequence(entry: tuple[int, int], moves: str) -> list[tuple[int, i
     return cells
 
 
-def _path_directions(sequence: list[tuple[int, int]]) -> dict[tuple[int, int], set[str]]:
+def _path_directions(
+    sequence: list[tuple[int, int]],
+) -> dict[tuple[int, int], set[str]]:
+    """Map each path cell to the directions it connects to."""
     direction_map: dict[tuple[int, int], set[str]] = {}
     move_lookup = {
         (0, -1): "N",
@@ -165,6 +193,7 @@ def _draw_maze(
     generator: GeneratorLike,
     state: _UiState,
 ) -> None:
+    """Render the full UI frame for the current maze state."""
     import curses
 
     stdscr.erase()
@@ -183,11 +212,17 @@ def _draw_maze(
         stdscr.refresh()
         return
 
-    wall_pair = curses.color_pair(state.color_index + 1) if curses.has_colors() else 0
+    wall_pair = (
+        curses.color_pair(state.color_index + 1)
+        if curses.has_colors()
+        else 0
+    )
     blocked_pair = curses.color_pair(6) if curses.has_colors() else 0
     path_pair = curses.color_pair(7) if curses.has_colors() else 0
     text_pair = curses.color_pair(8) if curses.has_colors() else 0
-    accent_pair = curses.color_pair(9) if curses.has_colors() else curses.A_BOLD
+    accent_pair = (
+        curses.color_pair(9) if curses.has_colors() else curses.A_BOLD
+    )
 
     blocked = generator.blocked_cells
     path_moves = ""
@@ -196,7 +231,9 @@ def _draw_maze(
 
     if state.animated_path is not None and not state.generation_in_progress:
         full_sequence = _path_cell_sequence(cfg.entry, path_moves)
-        path_sequence = [cell for cell in full_sequence if cell in state.animated_path]
+        path_sequence = [
+            cell for cell in full_sequence if cell in state.animated_path
+        ]
         path = state.animated_path
     elif state.show_path and not state.generation_in_progress:
         path_sequence = _path_cell_sequence(cfg.entry, path_moves)
@@ -205,32 +242,72 @@ def _draw_maze(
         path_sequence = []
         path = set()
     path_dirs = _path_directions(path_sequence) if path_sequence else {}
+    mode_label = _mode_label(cfg.perfect)
 
     header_lines = [
         "A-Maze-ing  terminal interface",
         (
-            f"size {cfg.width}x{cfg.height}   mode {'perfect' if cfg.perfect else 'loopy'}   "
+            f"size {cfg.width}x{cfg.height}   mode {mode_label}   "
             f"seed {cfg.seed if cfg.seed is not None else 'random'}   path "
             f"{'...' if state.generation_in_progress else len(path_moves)}"
         ),
     ]
     controls_lines = [
-        "r regenerate   g animate-gen   s animate-solve   p path   c palette   q quit",
-        f"renderer curses   generate {state.color_index + 1}/5 palette   status {state.status}",
+        (
+            "r regenerate   g animate-gen   s animate-solve   "
+            "p path   c palette   q quit"
+        ),
+        (
+            "renderer curses   generate "
+            f"{state.color_index + 1}/5 palette   status {state.status}"
+        ),
     ]
     panel_width = max(
         needed_cols,
         max(len(line) for line in header_lines + controls_lines) + 2,
     )
-    _draw_panel(stdscr, 0, 0, panel_width, header_lines, accent_pair, text_pair | curses.A_BOLD)
-    _draw_panel(stdscr, 0, min(panel_width + 2, max_x - (len(controls_lines[0]) + 4)), len(controls_lines[0]) + 4, controls_lines, wall_pair, text_pair)
+    _draw_panel(
+        stdscr,
+        0,
+        0,
+        panel_width,
+        header_lines,
+        accent_pair,
+        text_pair | curses.A_BOLD,
+    )
+    _draw_panel(
+        stdscr,
+        0,
+        min(panel_width + 2, max_x - (len(controls_lines[0]) + 4)),
+        len(controls_lines[0]) + 4,
+        controls_lines,
+        wall_pair,
+        text_pair,
+    )
+    if not cfg.perfect:
+        mode_banner = "[ NOT PERFECT MAZE ] extra loops enabled"
+        stdscr.addnstr(
+            HEADER_H,
+            0,
+            mode_banner.ljust(max_x - 1),
+            max_x - 1,
+            blocked_pair | curses.A_BOLD,
+        )
 
-    for row_index, y in enumerate(range(0, cfg.height * (CELL_H + 1) + 1, CELL_H + 1)):
+    for row_index, y in enumerate(
+        range(0, cfg.height * (CELL_H + 1) + 1, CELL_H + 1)
+    ):
         for col_index, x in enumerate(range(0, needed_cols, CELL_W + 1)):
             stdscr.addch(
                 maze_top + y,
                 x,
-                _frame_char(row_index, col_index, cfg.height + 1, cfg.width + 1, curses),
+                _frame_char(
+                    row_index,
+                    col_index,
+                    cfg.height + 1,
+                    cfg.width + 1,
+                    curses,
+                ),
                 wall_pair,
             )
 
@@ -286,42 +363,99 @@ def _draw_maze(
                 dirs = path_dirs.get((x, y), set())
                 if char == "│":
                     for fill_y in range(1, CELL_H + 1):
-                        stdscr.addch(maze_top + cell_top + fill_y, cx, "│", path_pair)
+                        stdscr.addch(
+                            maze_top + cell_top + fill_y,
+                            cx,
+                            "│",
+                            path_pair,
+                        )
                 elif char == "─":
                     for fill_x in range(1, CELL_W + 1):
-                        stdscr.addch(maze_top + cy, cell_left + fill_x, "─", path_pair)
+                        stdscr.addch(
+                            maze_top + cy,
+                            cell_left + fill_x,
+                            "─",
+                            path_pair,
+                        )
                 else:
                     if "N" in dirs:
-                        stdscr.addch(maze_top + cell_top + 1, cx, "│", path_pair)
+                        stdscr.addch(
+                            maze_top + cell_top + 1,
+                            cx,
+                            "│",
+                            path_pair,
+                        )
                     if "S" in dirs:
-                        stdscr.addch(maze_top + cell_top + CELL_H, cx, "│", path_pair)
+                        stdscr.addch(
+                            maze_top + cell_top + CELL_H,
+                            cx,
+                            "│",
+                            path_pair,
+                        )
                     if "W" in dirs:
-                        stdscr.addch(maze_top + cy, cell_left + 1, "─", path_pair)
+                        stdscr.addch(
+                            maze_top + cy,
+                            cell_left + 1,
+                            "─",
+                            path_pair,
+                        )
                     if "E" in dirs:
-                        stdscr.addch(maze_top + cy, cell_left + CELL_W, "─", path_pair)
+                        stdscr.addch(
+                            maze_top + cy,
+                            cell_left + CELL_W,
+                            "─",
+                            path_pair,
+                        )
 
             stdscr.addch(maze_top + cy, cx, char, attr)
             if draw_north:
                 for offset in range(1, CELL_W + 1):
-                    stdscr.addch(maze_top + cell_top, cell_left + offset, curses.ACS_HLINE, wall_pair)
+                    stdscr.addch(
+                        maze_top + cell_top,
+                        cell_left + offset,
+                        curses.ACS_HLINE,
+                        wall_pair,
+                    )
             if draw_south:
                 bottom = cell_top + CELL_H + 1
                 for offset in range(1, CELL_W + 1):
-                    stdscr.addch(maze_top + bottom, cell_left + offset, curses.ACS_HLINE, wall_pair)
+                    stdscr.addch(
+                        maze_top + bottom,
+                        cell_left + offset,
+                        curses.ACS_HLINE,
+                        wall_pair,
+                    )
             if draw_west:
                 for offset in range(1, CELL_H + 1):
-                    stdscr.addch(maze_top + cell_top + offset, cell_left, curses.ACS_VLINE, wall_pair)
+                    stdscr.addch(
+                        maze_top + cell_top + offset,
+                        cell_left,
+                        curses.ACS_VLINE,
+                        wall_pair,
+                    )
             if draw_east:
                 right = cell_left + CELL_W + 1
                 for offset in range(1, CELL_H + 1):
-                    stdscr.addch(maze_top + cell_top + offset, right, curses.ACS_VLINE, wall_pair)
+                    stdscr.addch(
+                        maze_top + cell_top + offset,
+                        right,
+                        curses.ACS_VLINE,
+                        wall_pair,
+                    )
 
     footer = f"status  {state.status}"
-    stdscr.addnstr(maze_top + cfg.height * (CELL_H + 1) + 2, 0, footer, max_x - 1, text_pair)
+    stdscr.addnstr(
+        maze_top + cfg.height * (CELL_H + 1) + 2,
+        0,
+        footer,
+        max_x - 1,
+        text_pair,
+    )
     stdscr.refresh()
 
 
 def _init_colors() -> None:
+    """Initialize the color pairs used by the curses UI."""
     import curses
 
     if not curses.has_colors():
@@ -352,6 +486,7 @@ def _loop(
     generate_delay_ms: int,
     solve_delay_ms: int,
 ) -> None:
+    """Run the interactive curses event loop."""
     import curses
 
     curses.curs_set(0)
@@ -363,6 +498,7 @@ def _loop(
     max_color_index = 4
 
     def _animate_generation() -> None:
+        """Animate maze regeneration by redrawing during carving."""
         if regenerate is None:
             state.status = "Regenerate unavailable"
             return
@@ -374,6 +510,7 @@ def _loop(
         frame_counter = 0
 
         def on_step() -> None:
+            """Redraw every other generation callback for smoother pacing."""
             nonlocal frame_counter
             frame_counter += 1
             if frame_counter % 2 == 0:
@@ -390,6 +527,7 @@ def _loop(
             state.generation_in_progress = False
 
     def _animate_solve() -> None:
+        """Animate the shortest path one visited cell at a time."""
         state.show_path = False
         state.animated_path = set()
         state.status = "Animating solve path..."

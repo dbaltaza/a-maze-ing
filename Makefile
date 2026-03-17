@@ -4,7 +4,7 @@ CONFIG ?= config.txt
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install run debug clean lint
+.PHONY: help install run debug clean lint lint-strict
 
 help:
 	@printf "\nA-Maze-ing\n\n"
@@ -12,6 +12,7 @@ help:
 	@printf "  %-12s %s\n" "make debug" "Run the app in pdb"
 	@printf "  %-12s %s\n" "make install" "Install project and dev tools"
 	@printf "  %-12s %s\n" "make lint" "Run flake8 and mypy"
+	@printf "  %-12s %s\n" "make lint-strict" "Run flake8 and strict mypy"
 	@printf "  %-12s %s\n" "make clean" "Remove build and cache artifacts"
 	@printf "\n"
 
@@ -19,7 +20,7 @@ install:
 	@printf "\n[install] updating environment\n"
 	$(PYTHON) -m pip install --upgrade pip
 	$(PYTHON) -m pip install .
-	$(PYTHON) -m pip install flake8 mypy
+	$(PYTHON) -m pip install build flake8 mypy
 
 run:
 	@printf "\n[run] launching maze with %s\n" "$(CONFIG)"
@@ -38,5 +39,10 @@ clean:
 
 lint:
 	@printf "\n[lint] running static checks\n"
-	flake8 .
-	mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+	$(PYTHON) -m flake8 .
+	$(PYTHON) -m mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+
+lint-strict:
+	@printf "\n[lint-strict] running strict static checks\n"
+	$(PYTHON) -m flake8 .
+	$(PYTHON) -m mypy . --strict

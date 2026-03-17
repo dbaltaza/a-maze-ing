@@ -8,6 +8,7 @@ from .maze import DIR_BITS, OPPOSITE, Maze
 
 
 def validate_symmetry(maze: Maze, blocked: set[tuple[int, int]]) -> bool:
+    """Check that shared walls match on both sides."""
     for y in range(maze.height):
         for x in range(maze.width):
             if (x, y) in blocked:
@@ -25,6 +26,7 @@ def validate_symmetry(maze: Maze, blocked: set[tuple[int, int]]) -> bool:
 
 
 def validate_borders(maze: Maze, blocked: set[tuple[int, int]]) -> bool:
+    """Check that outer border walls stay closed."""
     for y in range(maze.height):
         for x in range(maze.width):
             if (x, y) in blocked:
@@ -42,10 +44,12 @@ def validate_borders(maze: Maze, blocked: set[tuple[int, int]]) -> bool:
 
 
 def validate_blocked_closed(maze: Maze, blocked: set[tuple[int, int]]) -> bool:
+    """Check that blocked cells remain fully closed."""
     return all(maze.get_cell_walls(x, y) == 0xF for (x, y) in blocked)
 
 
 def _window_all_open(maze: Maze, ox: int, oy: int) -> bool:
+    """Return whether a 3x3 window has no internal walls at all."""
     # Horizontal shared walls in a 3x3 window.
     for dy in range(3):
         y = oy + dy
@@ -63,7 +67,11 @@ def _window_all_open(maze: Maze, ox: int, oy: int) -> bool:
     return True
 
 
-def validate_open_areas_max2(maze: Maze, blocked: set[tuple[int, int]]) -> bool:
+def validate_open_areas_max2(
+    maze: Maze,
+    blocked: set[tuple[int, int]],
+) -> bool:
+    """Reject mazes containing a fully open 3x3 region."""
     if maze.width < 3 or maze.height < 3:
         return True
     for oy in range(maze.height - 2):
@@ -79,6 +87,7 @@ def validate_open_areas_max2(maze: Maze, blocked: set[tuple[int, int]]) -> bool:
 def _reachable_cells(
     maze: Maze, blocked: set[tuple[int, int]], start: tuple[int, int]
 ) -> set[tuple[int, int]]:
+    """Return all cells reachable from a starting point."""
     q: deque[tuple[int, int]] = deque([start])
     seen: set[tuple[int, int]] = {start}
     while q:
@@ -100,6 +109,7 @@ def validate_reachability(
     entry: tuple[int, int],
     exit: tuple[int, int],
 ) -> bool:
+    """Check that entry and exit are connected to all open cells."""
     if entry in blocked or exit in blocked:
         return False
     seen = _reachable_cells(maze, blocked, entry)
@@ -110,6 +120,7 @@ def validate_reachability(
 def validate_tree_structure(
     maze: Maze, blocked: set[tuple[int, int]], entry: tuple[int, int]
 ) -> bool:
+    """Check that the reachable maze graph is a tree."""
     seen = _reachable_cells(maze, blocked, entry)
     if len(seen) != (maze.width * maze.height - len(blocked)):
         return False
@@ -119,13 +130,19 @@ def validate_tree_structure(
         for x in range(maze.width):
             if (x, y) in blocked:
                 continue
-            if x + 1 < maze.width and (x + 1, y) not in blocked and not maze.has_wall(
-                x, y, "E"
-            ):
+            east_open = (
+                x + 1 < maze.width
+                and (x + 1, y) not in blocked
+                and not maze.has_wall(x, y, "E")
+            )
+            if east_open:
                 edges += 1
-            if y + 1 < maze.height and (x, y + 1) not in blocked and not maze.has_wall(
-                x, y, "S"
-            ):
+            south_open = (
+                y + 1 < maze.height
+                and (x, y + 1) not in blocked
+                and not maze.has_wall(x, y, "S")
+            )
+            if south_open:
                 edges += 1
     return edges == len(seen) - 1
 
@@ -137,6 +154,7 @@ def validate_all(
     exit: tuple[int, int],
     perfect: bool,
 ) -> bool:
+    """Run all structural validators required by the subject."""
     checks = [
         validate_symmetry(maze, blocked),
         validate_borders(maze, blocked),

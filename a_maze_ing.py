@@ -55,6 +55,7 @@ def _generate_and_write(
 
 
 def _announce_renderer(name: str, *, detail: str | None = None) -> None:
+    """Print the selected renderer to stderr."""
     message = f"Renderer: {name}"
     if detail:
         message = f"{message} ({detail})"
@@ -66,6 +67,7 @@ def _run_renderer(
     generator: MazeGenerator,
     regenerate_and_save: Callable[[Callable[[], None] | None], None],
 ) -> None:
+    """Run the requested renderer with ASCII fallback when needed."""
     requested = cfg.renderer
 
     if requested == "ascii":
@@ -114,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         def regenerate_and_save(
             on_step: Callable[[], None] | None = None,
         ) -> None:
+            """Regenerate the maze and persist the updated output file."""
             _generate_and_write(cfg, generator, on_step=on_step)
 
         _run_renderer(cfg, generator, regenerate_and_save)

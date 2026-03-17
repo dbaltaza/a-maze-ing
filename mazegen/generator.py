@@ -12,6 +12,8 @@ from .validate import validate_all
 
 
 class MazeGenerator:
+    """Generate, validate, and solve mazes for the application layer."""
+
     def __init__(
         self,
         width: int,
@@ -22,6 +24,7 @@ class MazeGenerator:
         seed: int | None = None,
         algo: str = "dfs",
     ) -> None:
+        """Store validated generator settings and initialize caches."""
         if not isinstance(width, int) or not isinstance(height, int):
             raise TypeError("width and height must be integers")
         if width <= 0 or height <= 0:
@@ -46,21 +49,31 @@ class MazeGenerator:
         self._shortest_path: list[tuple[int, int]] | None = None
 
     @staticmethod
-    def _validate_point(name: str, p: tuple[int, int], width: int, height: int) -> None:
+    def _validate_point(
+        name: str,
+        p: tuple[int, int],
+        width: int,
+        height: int,
+    ) -> None:
+        """Validate one coordinate tuple against maze bounds."""
         if not isinstance(p, tuple) or len(p) != 2:
             raise TypeError(f"{name} must be a tuple like (x, y)")
         x, y = p
         if not isinstance(x, int) or not isinstance(y, int):
             raise TypeError(f"{name} coordinates must be integers")
         if not (0 <= x < width and 0 <= y < height):
-            raise ValueError(f"{name} out of bounds: {p} for maze {width}x{height}")
+            raise ValueError(
+                f"{name} out of bounds: {p} for maze {width}x{height}"
+            )
 
     def _ensure_generated(self) -> Maze:
+        """Return the current maze or fail if generation has not run yet."""
         if self._maze is None:
             raise RuntimeError("maze not generated yet; call generate() first")
         return self._maze
 
     def generate(self) -> None:
+        """Generate a maze without progress callbacks."""
         self.generate_with_callback()
 
     def generate_with_callback(
@@ -69,6 +82,7 @@ class MazeGenerator:
         *,
         step_stride: int = 1,
     ) -> None:
+        """Generate a maze and optionally emit periodic progress callbacks."""
         if self._algo != "dfs":
             raise ValueError(f"unsupported algo: {self._algo}")
         if step_stride <= 0:
@@ -94,6 +108,7 @@ class MazeGenerator:
             step_count = 0
 
             def step_callback() -> None:
+                """Forward generation progress according to the step stride."""
                 nonlocal step_count
                 step_count += 1
                 if on_step is None:
@@ -128,6 +143,7 @@ class MazeGenerator:
         raise RuntimeError("could not generate a valid maze after retries")
 
     def solve_shortest(self) -> list[tuple[int, int]]:
+        """Return the shortest entry-to-exit path as cell coordinates."""
         maze = self._ensure_generated()
         if self._shortest_path is None:
             self._shortest_path = bfs_shortest_path(
@@ -136,17 +152,23 @@ class MazeGenerator:
         return list(self._shortest_path)
 
     def path_moves(self) -> str:
+        """Return the shortest path as NESW letters."""
         return path_to_moves(self.solve_shortest())
 
     def to_hex_lines(self) -> list[str]:
+        """Return the maze grid encoded as hexadecimal wall rows."""
         maze = self._ensure_generated()
         lines: list[str] = []
         for y in range(self._height):
-            line = "".join(f"{maze.get_cell_walls(x, y):X}" for x in range(self._width))
+            line = "".join(
+                f"{maze.get_cell_walls(x, y):X}"
+                for x in range(self._width)
+            )
             lines.append(line)
         return lines
 
     def get_cell_walls(self, x: int, y: int) -> int:
+        """Return one cell wall bitmask after bounds validation."""
         maze = self._ensure_generated()
         if not (0 <= x < self._width and 0 <= y < self._height):
             raise ValueError(f"cell out of bounds: {(x, y)}")
@@ -154,5 +176,6 @@ class MazeGenerator:
 
     @property
     def blocked_cells(self) -> set[tuple[int, int]]:
+        """Return a copy of the blocked cells used to draw the 42 pattern."""
         self._ensure_generated()
         return set(self._blocked)

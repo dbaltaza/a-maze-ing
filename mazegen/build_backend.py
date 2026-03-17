@@ -7,6 +7,7 @@ import hashlib
 import os
 import tarfile
 from pathlib import Path
+from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 try:
@@ -19,6 +20,7 @@ PACKAGE_DIR = ROOT / "mazegen"
 
 
 def _project_metadata() -> dict[str, str]:
+    """Read the core project metadata from pyproject.toml."""
     pyproject = ROOT / "pyproject.toml"
     data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     project = data["project"]
@@ -31,16 +33,19 @@ def _project_metadata() -> dict[str, str]:
 
 
 def _dist_info_name(name: str, version: str) -> str:
+    """Return the normalized dist-info directory name."""
     normalized = name.replace("-", "_")
     return f"{normalized}-{version}.dist-info"
 
 
 def _wheel_filename(name: str, version: str) -> str:
+    """Return the normalized wheel filename."""
     normalized = name.replace("-", "_")
     return f"{normalized}-{version}-py3-none-any.whl"
 
 
 def _metadata_text(meta: dict[str, str]) -> str:
+    """Build the wheel METADATA file contents."""
     return (
         "Metadata-Version: 2.1\n"
         f"Name: {meta['name']}\n"
@@ -51,6 +56,7 @@ def _metadata_text(meta: dict[str, str]) -> str:
 
 
 def _wheel_text() -> str:
+    """Build the wheel WHEEL file contents."""
     return (
         "Wheel-Version: 1.0\n"
         "Generator: mazegen.build_backend\n"
@@ -60,6 +66,7 @@ def _wheel_text() -> str:
 
 
 def _iter_package_files() -> list[Path]:
+    """Return package files that must be included in built artifacts."""
     files: list[Path] = []
     for path in sorted(PACKAGE_DIR.rglob("*")):
         if path.is_dir():
@@ -71,6 +78,7 @@ def _iter_package_files() -> list[Path]:
 
 
 def _zipinfo(path: str) -> ZipInfo:
+    """Return deterministic ZipInfo metadata for one archive member."""
     z = ZipInfo(path)
     z.date_time = (2020, 1, 1, 0, 0, 0)
     z.compress_type = ZIP_DEFLATED
@@ -78,12 +86,14 @@ def _zipinfo(path: str) -> ZipInfo:
 
 
 def _record_hash(data: bytes) -> str:
+    """Return the PEP 427 hash fragment for one file payload."""
     digest = hashlib.sha256(data).digest()
     b64 = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
     return f"sha256={b64}"
 
 
 def _write_metadata_dir(base: Path, dist_info: str) -> str:
+    """Write wheel metadata files into a prepared directory."""
     md_dir = base / dist_info
     md_dir.mkdir(parents=True, exist_ok=True)
     meta = _project_metadata()
@@ -93,22 +103,42 @@ def _write_metadata_dir(base: Path, dist_info: str) -> str:
     return dist_info
 
 
-def get_requires_for_build_wheel(config_settings=None) -> list[str]:
+def get_requires_for_build_wheel(
+    config_settings: dict[str, Any] | None = None,
+) -> list[str]:
+    """Return build requirements for wheel generation."""
+    del config_settings
     return []
 
 
-def get_requires_for_build_sdist(config_settings=None) -> list[str]:
+def get_requires_for_build_sdist(
+    config_settings: dict[str, Any] | None = None,
+) -> list[str]:
+    """Return build requirements for sdist generation."""
+    del config_settings
     return []
 
 
-def prepare_metadata_for_build_wheel(metadata_directory, config_settings=None) -> str:
+def prepare_metadata_for_build_wheel(
+    metadata_directory: str,
+    config_settings: dict[str, Any] | None = None,
+) -> str:
+    """Create the dist-info metadata directory for a wheel build."""
+    del config_settings
     meta = _project_metadata()
     dist_info = _dist_info_name(meta["name"], meta["version"])
     _write_metadata_dir(Path(metadata_directory), dist_info)
     return dist_info
 
 
-def build_wheel(wheel_directory, config_settings=None, metadata_directory=None) -> str:
+def build_wheel(
+    wheel_directory: str,
+    config_settings: dict[str, Any] | None = None,
+    metadata_directory: str | None = None,
+) -> str:
+    """Build a pure-Python wheel into the requested directory."""
+    del config_settings
+    del metadata_directory
     meta = _project_metadata()
     dist_info = _dist_info_name(meta["name"], meta["version"])
     wheel_name = _wheel_filename(meta["name"], meta["version"])
@@ -145,14 +175,23 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None) 
     return wheel_name
 
 
-def build_sdist(sdist_directory, config_settings=None) -> str:
+def build_sdist(
+    sdist_directory: str,
+    config_settings: dict[str, Any] | None = None,
+) -> str:
+    """Build a source distribution into the requested directory."""
+    del config_settings
     meta = _project_metadata()
     root_name = f"{meta['name']}-{meta['version']}"
     os.makedirs(sdist_directory, exist_ok=True)
     sdist_name = f"{root_name}.tar.gz"
     sdist_path = Path(sdist_directory) / sdist_name
 
-    include_files = [ROOT / "pyproject.toml", ROOT / "README.md"] + _iter_package_files()
+    include_files = [
+        ROOT / "pyproject.toml",
+        ROOT / "README.md",
+        * _iter_package_files(),
+    ]
     with tarfile.open(sdist_path, "w:gz") as tf:
         for src in include_files:
             arcname = f"{root_name}/{src.relative_to(ROOT).as_posix()}"
