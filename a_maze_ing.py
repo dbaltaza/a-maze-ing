@@ -23,7 +23,6 @@ def _build_generator(cfg: MazeConfig) -> MazeGenerator:
         exit=cfg.exit,
         perfect=cfg.perfect,
         seed=cfg.seed,
-        algo=cfg.algo,
     )
 
 

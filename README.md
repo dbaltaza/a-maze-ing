@@ -127,7 +127,6 @@ PERFECT=True                # True = no loops, False = cycles allowed
 ### Optional Parameters
 ```ini
 SEED=42                     # Deterministic seed (omit for random)
-ALGO=dfs                    # Generation algorithm (currently: dfs)
 RENDERER=auto               # Renderer: auto|curses|ascii
 GENERATE_DELAY_MS=120       # Animation delay during generation
 SOLVE_DELAY_MS=100          # Animation delay during solving
@@ -144,7 +143,6 @@ SOLVE_DELAY_MS=100          # Animation delay during solving
 | `OUTPUT_FILE` | path | **required** | File path for hex output |
 | `PERFECT` | bool | **required** | `True` for perfect maze, `False` for loops |
 | `SEED` | int | random | Seed for reproducible generation |
-| `ALGO` | string | `dfs` | Algorithm choice (currently only `dfs`) |
 | `RENDERER` | string | `auto` | Rendering mode (`auto`/`curses`/`ascii`) |
 | `GENERATE_DELAY_MS` | int | `0` | Delay for generation animation (ms) |
 | `SOLVE_DELAY_MS` | int | `0` | Delay for solving animation (ms) |
@@ -295,8 +293,7 @@ generator = MazeGenerator(
     entry=(0, 0),
     exit=(24, 14),
     perfect=True,
-    seed=42,  # Optional
-    algo="dfs"
+    seed=42  # Optional
 )
 
 # Generate maze
@@ -320,8 +317,7 @@ def __init__(
     entry: tuple[int, int],
     exit: tuple[int, int],
     perfect: bool,
-    seed: int | None = None,
-    algo: str = "dfs"
+    seed: int | None = None
 )
 ```
 
@@ -378,29 +374,7 @@ python3 -m pytest --cov=mazegen --cov=app tests/
 
 ### Adding New Algorithms
 
-To add a new generation algorithm:
-
-1. Implement in `mazegen/algorithms.py`:
-```python
-def generate_custom_algo(
-    maze: Maze,
-    rng: random.Random,
-    blocked: set[tuple[int, int]],
-    start: tuple[int, int]
-) -> None:
-    # Your algorithm implementation
-    pass
-```
-
-2. Register in `mazegen/generator.py`:
-```python
-_ALGORITHMS = {
-    "dfs": generate_perfect_dfs,
-    "custom": generate_custom_algo,  # Add here
-}
-```
-
-3. Update config parser validation in `app/parser.py`
+The project uses a recursive backtracking (DFS) algorithm for maze generation. To modify or extend the generation algorithm, update the implementation in `mazegen/algorithms.py` and `mazegen/generator.py`.
 
 ---
 

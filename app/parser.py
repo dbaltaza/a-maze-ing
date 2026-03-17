@@ -10,7 +10,6 @@ from .errors import ConfigError
 _REQUIRED_KEYS = {"WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE", "PERFECT"}
 _OPTIONAL_KEYS = {
     "SEED",
-    "ALGO",
     "RENDERER",
     "GENERATE_DELAY_MS",
     "SOLVE_DELAY_MS",
@@ -30,7 +29,6 @@ class MazeConfig:
     output_file: str
     perfect: bool
     seed: int | None = None
-    algo: str = "dfs"
     renderer: str = "auto"
     generate_delay_ms: int = 8
     solve_delay_ms: int = 25
@@ -159,12 +157,6 @@ def load_config(path: str | Path) -> MazeConfig:
         if seed_raw.strip():
             seed = _parse_int(seed_raw, "SEED", line_no=seed_line)
 
-    if "ALGO" in raw_values:
-        algo_raw, _algo_line = raw_values["ALGO"]
-        algo = algo_raw.strip().lower() or "dfs"
-    else:
-        algo = "dfs"
-
     if "RENDERER" in raw_values:
         renderer_raw, renderer_line = raw_values["RENDERER"]
         renderer = renderer_raw.strip().lower() or "auto"
@@ -202,7 +194,6 @@ def load_config(path: str | Path) -> MazeConfig:
         output_file=output_file,
         perfect=perfect,
         seed=seed,
-        algo=algo,
         renderer=renderer,
         generate_delay_ms=generate_delay_ms,
         solve_delay_ms=solve_delay_ms,

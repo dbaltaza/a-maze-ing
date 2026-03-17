@@ -22,7 +22,6 @@ class MazeGenerator:
         exit: tuple[int, int],
         perfect: bool = True,
         seed: int | None = None,
-        algo: str = "dfs",
     ) -> None:
         """Store validated generator settings and initialize caches."""
         if not isinstance(width, int) or not isinstance(height, int):
@@ -34,8 +33,6 @@ class MazeGenerator:
         self._validate_point("exit", exit, width, height)
         if entry == exit:
             raise ValueError("entry and exit must be different")
-        if algo.lower() != "dfs":
-            raise ValueError("only 'dfs' is supported")
 
         self._width = width
         self._height = height
@@ -43,7 +40,6 @@ class MazeGenerator:
         self._exit = exit
         self._perfect = perfect
         self._seed = seed
-        self._algo = algo.lower()
         self._maze: Maze | None = None
         self._blocked: set[tuple[int, int]] = set()
         self._shortest_path: list[tuple[int, int]] | None = None
@@ -83,8 +79,6 @@ class MazeGenerator:
         step_stride: int = 1,
     ) -> None:
         """Generate a maze and optionally emit periodic progress callbacks."""
-        if self._algo != "dfs":
-            raise ValueError(f"unsupported algo: {self._algo}")
         if step_stride <= 0:
             raise ValueError("step_stride must be > 0")
 
