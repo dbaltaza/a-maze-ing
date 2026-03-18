@@ -71,7 +71,13 @@ def _run_renderer(
 
     if requested == "ascii":
         _announce_renderer("ascii", detail="requested")
-        run_ascii_ui(cfg, generator, regenerate_and_save)
+        run_ascii_ui(
+            cfg,
+            generator,
+            regenerate_and_save,
+            generate_delay_ms=cfg.generate_delay_ms,
+            solve_delay_ms=cfg.solve_delay_ms,
+        )
         return
 
     if requested == "curses":
@@ -99,7 +105,13 @@ def _run_renderer(
         print(f"Warning: curses unavailable: {exc}", file=sys.stderr)
 
     _announce_renderer("ascii", detail="auto fallback")
-    run_ascii_ui(cfg, generator, regenerate_and_save)
+    run_ascii_ui(
+        cfg,
+        generator,
+        regenerate_and_save,
+        generate_delay_ms=cfg.generate_delay_ms,
+        solve_delay_ms=cfg.solve_delay_ms,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

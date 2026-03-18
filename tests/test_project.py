@@ -497,6 +497,18 @@ class AsciiRendererTests(unittest.TestCase):
         self.assertTrue(any("." in line for line in maze_lines))
         self.assertTrue(any("#" in line for line in maze_lines))
 
+    def test_build_ascii_lines_can_render_discovered_cells(self) -> None:
+        """Discovery frames should expose explored cells distinctly."""
+        cfg, generator = self._build_generator()
+
+        maze_lines = build_ascii_lines(
+            cfg,
+            generator,
+            discovered_cells={cfg.entry, (1, 0)},
+        )
+
+        self.assertTrue(any("o" in line for line in maze_lines))
+
     def test_render_ascii_returns_ascii_panels_and_maze(self) -> None:
         """Static ASCII render should avoid Unicode box-drawing glyphs."""
         cfg, generator = self._build_generator()
