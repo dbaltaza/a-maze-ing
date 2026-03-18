@@ -96,8 +96,8 @@ class Maze:
         """Return deterministic blocked cells for a centered 42 glyph."""
         forbidden = forbidden or set()
         glyph = [
-            "X.X.XXX",
-            "X.X...X",
+            "X...XXX",
+            "X.....X",
             "XXX.XXX",
             "..X.X..",
             "..X.XXX",
