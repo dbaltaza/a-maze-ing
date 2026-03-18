@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+import os
+import sys
+from typing import Callable, Protocol
 
 from .parser import MazeConfig
 
@@ -11,31 +13,26 @@ E = 2
 S = 4
 W = 8
 CELL_W = 3
-CELL_H = 2
-_H_WALL = "━"
-_V_WALL = "┃"
-_TL = "╭"
-_TR = "╮"
-_BL = "╰"
-_BR = "╯"
-_TJ = "┳"
-_BJ = "┻"
-_LJ = "┣"
-_RJ = "┫"
-_CROSS = "╋"
-_BLOCKED = "▓"
-_PATH_SEGMENTS = {
-    frozenset({"N", "S"}): "│",
-    frozenset({"E", "W"}): "─",
-    frozenset({"N", "E"}): "╰",
-    frozenset({"E", "S"}): "╭",
-    frozenset({"S", "W"}): "╮",
-    frozenset({"N", "W"}): "╯",
-    frozenset({"N"}): "│",
-    frozenset({"S"}): "│",
-    frozenset({"E"}): "─",
-    frozenset({"W"}): "─",
-}
+_H_WALL = "-"
+_V_WALL = "|"
+_CORNER = "+"
+_BLOCKED = "#"
+_PATH = "."
+_ANSI_RESET = "\033[0m"
+_ANSI_CLEAR = "\033[2J\033[H"
+_WALL_COLORS = [
+    "\033[97m",
+    "\033[96m",
+    "\033[92m",
+    "\033[93m",
+    "\033[95m",
+]
+_BLOCKED_COLOR = "\033[37m"
+_PATH_COLOR = "\033[94m"
+_START_COLOR = "\033[95m"
+_GOAL_COLOR = "\033[91m"
+_TEXT_COLOR = "\033[97m"
+_MUTED_COLOR = "\033[90m"
 
 
 def _mode_label(perfect: bool) -> str:
@@ -44,39 +41,14 @@ def _mode_label(perfect: bool) -> str:
 
 
 def _boxed_lines(title: str, body: list[str]) -> list[str]:
-    """Wrap a title and body lines in a Unicode box."""
+    """Wrap a title and body lines in a simple ASCII box."""
     width = max(len(title), *(len(line) for line in body))
-    lines = [f"{_TL}{_H_WALL * (width + 2)}{_TR}"]
+    lines = [f"{_CORNER}{_H_WALL * (width + 2)}{_CORNER}"]
     lines.append(f"{_V_WALL} {title.ljust(width)} {_V_WALL}")
-    lines.append(f"{_LJ}{_H_WALL * (width + 2)}{_RJ}")
+    lines.append(f"{_CORNER}{_H_WALL * (width + 2)}{_CORNER}")
     lines.extend(f"{_V_WALL} {line.ljust(width)} {_V_WALL}" for line in body)
-    lines.append(f"{_BL}{_H_WALL * (width + 2)}{_BR}")
+    lines.append(f"{_CORNER}{_H_WALL * (width + 2)}{_CORNER}")
     return lines
-
-
-def _junction_char(row: int, col: int, rows: int, cols: int) -> str:
-    """Return the frame character for a grid intersection."""
-    top = row == 0
-    bottom = row == rows - 1
-    left = col == 0
-    right = col == cols - 1
-    if top and left:
-        return _TL
-    if top and right:
-        return _TR
-    if bottom and left:
-        return _BL
-    if bottom and right:
-        return _BR
-    if top:
-        return _TJ
-    if bottom:
-        return _BJ
-    if left:
-        return _LJ
-    if right:
-        return _RJ
-    return _CROSS
 
 
 class GeneratorLike(Protocol):
@@ -91,21 +63,6 @@ class GeneratorLike(Protocol):
 
     def path_moves(self) -> str:
         """Return shortest path as NESW moves."""
-
-
-def _path_cells(entry: tuple[int, int], moves: str) -> set[tuple[int, int]]:
-    """Expand an NESW move string into visited cells."""
-    x, y = entry
-    cells: set[tuple[int, int]] = {(x, y)}
-    deltas = {"N": (0, -1), "E": (1, 0), "S": (0, 1), "W": (-1, 0)}
-    for step in moves:
-        if step not in deltas:
-            continue
-        dx, dy = deltas[step]
-        x += dx
-        y += dy
-        cells.add((x, y))
-    return cells
 
 
 def _path_sequence(
@@ -126,24 +83,9 @@ def _path_sequence(
     return cells
 
 
-def _path_directions(
-    sequence: list[tuple[int, int]],
-) -> dict[tuple[int, int], set[str]]:
-    """Map each path cell to the directions it connects to."""
-    direction_map: dict[tuple[int, int], set[str]] = {}
-    move_lookup = {
-        (0, -1): "N",
-        (1, 0): "E",
-        (0, 1): "S",
-        (-1, 0): "W",
-    }
-    opposite = {"N": "S", "E": "W", "S": "N", "W": "E"}
-    for current, nxt in zip(sequence, sequence[1:]):
-        delta = (nxt[0] - current[0], nxt[1] - current[1])
-        direction = move_lookup[delta]
-        direction_map.setdefault(current, set()).add(direction)
-        direction_map.setdefault(nxt, set()).add(opposite[direction])
-    return direction_map
+def _interior_center(x: int, y: int) -> tuple[int, int]:
+    """Return the canvas coordinate for the center of one cell."""
+    return (y * 2 + 1, x * (CELL_W + 1) + 2)
 
 
 def build_ascii_lines(
@@ -152,33 +94,28 @@ def build_ascii_lines(
     *,
     show_path: bool = False,
 ) -> list[str]:
-    """Build Unicode terminal lines representing the maze."""
-    rows = cfg.height * (CELL_H + 1) + 1
+    """Build plain ASCII lines representing the maze."""
+    rows = cfg.height * 2 + 1
     cols = cfg.width * (CELL_W + 1) + 1
     canvas: list[list[str]] = [[" " for _ in range(cols)] for _ in range(rows)]
 
-    for row_index, y in enumerate(range(0, rows, CELL_H + 1)):
-        for col_index, x in enumerate(range(0, cols, CELL_W + 1)):
-            canvas[y][x] = _junction_char(
-                row_index,
-                col_index,
-                cfg.height + 1,
-                cfg.width + 1,
-            )
+    for y in range(0, rows, 2):
+        for x in range(0, cols, CELL_W + 1):
+            canvas[y][x] = _CORNER
 
     blocked = generator.blocked_cells
-    path_moves = generator.path_moves()
+    path_moves = generator.path_moves() if show_path else ""
     path_sequence = _path_sequence(cfg.entry, path_moves) if show_path else []
-    path = set(path_sequence)
-    path_dirs = _path_directions(path_sequence) if show_path else {}
 
     for y in range(cfg.height):
         for x in range(cfg.width):
-            cell_left = x * (CELL_W + 1)
-            cell_top = y * (CELL_H + 1)
-            cx = cell_left + (CELL_W // 2 + 1)
-            cy = cell_top + 1
             walls = generator.get_cell_walls(x, y)
+            center_row, center_col = _interior_center(x, y)
+            left = x * (CELL_W + 1)
+            right = left + CELL_W + 1
+            top = y * 2
+            bottom = top + 2
+
             draw_north = bool(walls & N)
             draw_south = bool(walls & S)
             draw_west = bool(walls & W)
@@ -194,55 +131,44 @@ def build_ascii_lines(
                 if (x + 1, y) in blocked:
                     draw_east = False
 
-            if (x, y) in blocked:
-                for fill_y in range(1, CELL_H + 1):
-                    for fill_x in range(1, CELL_W + 1):
-                        canvas[
-                            cell_top + fill_y
-                        ][cell_left + fill_x] = _BLOCKED
-            elif (x, y) in path:
-                dirs = path_dirs.get((x, y), set())
-                path_char = _PATH_SEGMENTS.get(frozenset(dirs), "•")
-                for fill_y in range(1, CELL_H + 1):
-                    canvas[cell_top + fill_y][cx] = (
-                        "│" if path_char == "│" else " "
-                    )
-                for fill_x in range(1, CELL_W + 1):
-                    if path_char == "─":
-                        canvas[cy][cell_left + fill_x] = "─"
-                if path_char in {"╰", "╭", "╮", "╯"}:
-                    if "N" in dirs:
-                        canvas[cell_top + 1][cx] = "│"
-                    if "S" in dirs:
-                        canvas[cell_top + CELL_H][cx] = "│"
-                    if "W" in dirs:
-                        canvas[cy][cell_left + 1] = "─"
-                    if "E" in dirs:
-                        canvas[cy][cell_left + CELL_W] = "─"
-                    canvas[cy][cx] = path_char
-
-            if (x, y) == cfg.entry:
-                canvas[cy][cx] = "S"
-            elif (x, y) == cfg.exit:
-                canvas[cy][cx] = "G"
-            elif (x, y) not in blocked:
-                canvas[cy][cx] = " "
             if draw_north:
                 for offset in range(1, CELL_W + 1):
-                    canvas[cell_top][cell_left + offset] = _H_WALL
+                    canvas[top][left + offset] = _H_WALL
             if draw_south:
-                bottom = cell_top + CELL_H + 1
                 for offset in range(1, CELL_W + 1):
-                    canvas[bottom][cell_left + offset] = _H_WALL
+                    canvas[bottom][left + offset] = _H_WALL
             if draw_west:
-                for offset in range(1, CELL_H + 1):
-                    canvas[cell_top + offset][cell_left] = _V_WALL
+                canvas[center_row][left] = _V_WALL
             if draw_east:
-                right = cell_left + CELL_W + 1
-                for offset in range(1, CELL_H + 1):
-                    canvas[cell_top + offset][right] = _V_WALL
+                canvas[center_row][right] = _V_WALL
 
-    return ["".join(row) for row in canvas]
+            if (x, y) in blocked:
+                for offset in range(1, CELL_W + 1):
+                    canvas[center_row][left + offset] = _BLOCKED
+
+    if path_sequence:
+        for current, nxt in zip(path_sequence, path_sequence[1:]):
+            cur_row, cur_col = _interior_center(*current)
+            next_row, next_col = _interior_center(*nxt)
+            canvas[cur_row][cur_col] = _PATH
+            canvas[next_row][next_col] = _PATH
+            if cur_row == next_row:
+                start = min(cur_col, next_col)
+                end = max(cur_col, next_col)
+                for col in range(start + 1, end):
+                    canvas[cur_row][col] = _PATH
+            else:
+                start = min(cur_row, next_row)
+                end = max(cur_row, next_row)
+                for row in range(start + 1, end):
+                    canvas[row][cur_col] = _PATH
+
+    start_row, start_col = _interior_center(*cfg.entry)
+    goal_row, goal_col = _interior_center(*cfg.exit)
+    canvas[start_row][start_col] = "S"
+    canvas[goal_row][goal_col] = "G"
+
+    return ["".join(row).rstrip() for row in canvas]
 
 
 def render_ascii(
@@ -251,7 +177,7 @@ def render_ascii(
     *,
     show_path: bool = False,
 ) -> str:
-    """Return and print a styled terminal representation of the maze."""
+    """Return and print a plain ASCII representation of the maze."""
     maze_lines = build_ascii_lines(cfg, generator, show_path=show_path)
     path_moves = generator.path_moves()
     mode_label = _mode_label(cfg.perfect)
@@ -280,8 +206,8 @@ def render_ascii(
     legend = _boxed_lines(
         "Legend",
         [
-            "S start   G goal   line shortest path",
-            "▓ painted 42 mask   renderer ascii fallback",
+            "S start   G goal   . shortest path",
+            "# painted 42 mask   plain ASCII fallback",
         ],
     )
     rendered = "\n".join(
@@ -296,3 +222,142 @@ def render_ascii(
     )
     print(rendered)
     return rendered
+
+
+def _supports_ansi() -> bool:
+    """Return whether the current terminal likely supports ANSI colors."""
+    term = os.environ.get("TERM", "").lower()
+    return sys.stdout.isatty() and term not in {"", "dumb"}
+
+
+def _style_maze_line(
+    line: str,
+    *,
+    palette_index: int,
+    show_path: bool,
+    use_color: bool,
+) -> str:
+    """Colorize one maze line for the interactive terminal UI."""
+    if not use_color:
+        return line
+
+    wall_color = _WALL_COLORS[palette_index % len(_WALL_COLORS)]
+    parts: list[str] = []
+    for ch in line:
+        if ch in {_CORNER, _H_WALL, _V_WALL}:
+            parts.append(f"{wall_color}{ch}{_ANSI_RESET}")
+        elif ch == _BLOCKED:
+            parts.append(f"{_BLOCKED_COLOR}{ch}{_ANSI_RESET}")
+        elif ch == "S":
+            parts.append(f"{_START_COLOR}{ch}{_ANSI_RESET}")
+        elif ch == "G":
+            parts.append(f"{_GOAL_COLOR}{ch}{_ANSI_RESET}")
+        elif ch == _PATH and show_path:
+            parts.append(f"{_PATH_COLOR}{ch}{_ANSI_RESET}")
+        else:
+            parts.append(ch)
+    return "".join(parts)
+
+
+def _interactive_screen(
+    cfg: MazeConfig,
+    generator: GeneratorLike,
+    *,
+    show_path: bool,
+    palette_index: int,
+    status: str,
+    use_color: bool,
+) -> str:
+    """Build the full interactive ASCII screen."""
+    maze_lines = build_ascii_lines(cfg, generator, show_path=show_path)
+    styled_maze = [
+        _style_maze_line(
+            line,
+            palette_index=palette_index,
+            show_path=show_path,
+            use_color=use_color,
+        )
+        for line in maze_lines
+    ]
+
+    seed_text = cfg.seed if cfg.seed is not None else "random"
+    summary = (
+        f"A-Maze-ing  {cfg.width}x{cfg.height}  {_mode_label(cfg.perfect)}  "
+        f"seed {seed_text}"
+    )
+    if use_color:
+        summary = f"{_TEXT_COLOR}{summary}{_ANSI_RESET}"
+
+    menu_lines = [
+        f"1. {'Hide' if show_path else 'Show'} path from entry to exit",
+        "2. Re-generate a new maze",
+        "3. Rotate maze colors",
+        "4. Quit",
+        f"Status: {status}",
+        "Choice (1-4): ",
+    ]
+    if use_color:
+        menu_lines = [
+            f"{_MUTED_COLOR}{line}{_ANSI_RESET}"
+            if line != "Choice (1-4): "
+            else line
+            for line in menu_lines
+        ]
+    return "\n".join([summary, "", *styled_maze, "", *menu_lines[:-1], menu_lines[-1]])
+
+
+def run_ascii_ui(
+    cfg: MazeConfig,
+    generator: GeneratorLike,
+    regenerate: Callable[[Callable[[], None] | None], None] | None = None,
+) -> None:
+    """Run a simple interactive terminal UI for the ASCII fallback."""
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        render_ascii(cfg, generator, show_path=False)
+        return
+
+    show_path = False
+    palette_index = 0
+    status = "Ready"
+    use_color = _supports_ansi()
+
+    while True:
+        screen = _interactive_screen(
+            cfg,
+            generator,
+            show_path=show_path,
+            palette_index=palette_index,
+            status=status,
+            use_color=use_color,
+        )
+        print(f"{_ANSI_CLEAR}{screen}", end="", flush=True)
+
+        try:
+            choice = input().strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+
+        if choice == "1":
+            show_path = not show_path
+            status = f"Path {'enabled' if show_path else 'hidden'}"
+            continue
+        if choice == "2":
+            if regenerate is None:
+                status = "Regenerate unavailable"
+                continue
+            try:
+                regenerate(None)
+                show_path = False
+                status = "Maze regenerated"
+            except Exception as exc:  # pragma: no cover - runtime safeguard
+                status = f"Regenerate failed: {exc}"
+            continue
+        if choice == "3":
+            palette_index = (palette_index + 1) % len(_WALL_COLORS)
+            status = f"Palette {palette_index + 1}/{len(_WALL_COLORS)}"
+            continue
+        if choice == "4":
+            print(_ANSI_CLEAR, end="", flush=True)
+            return
+        status = "Invalid choice"

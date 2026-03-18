@@ -7,6 +7,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -14,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from app.errors import ConfigError  # noqa: E402
 from app.parser import _INT_MAX, load_config  # noqa: E402
+from app.renderer_ascii import build_ascii_lines, render_ascii, run_ascii_ui  # noqa: E402
 from mazegen import MazeGenerator  # noqa: E402
 
 
@@ -463,6 +465,58 @@ class GeneratorTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "cell out of bounds"):
             generator.get_cell_walls(9, 0)
+
+
+class AsciiRendererTests(unittest.TestCase):
+    """Keep the fallback renderer plain-text safe and usable."""
+
+    def _build_generator(self) -> tuple[object, MazeGenerator]:
+        """Create a generated maze using the default project config."""
+        cfg = load_config(ROOT / "config.txt")
+        generator = MazeGenerator(
+            cfg.width,
+            cfg.height,
+            cfg.entry,
+            cfg.exit,
+            cfg.perfect,
+            cfg.seed,
+        )
+        generator.generate()
+        return cfg, generator
+
+    def test_build_ascii_lines_uses_plain_ascii_only(self) -> None:
+        """Maze canvas should stay restricted to ASCII characters."""
+        cfg, generator = self._build_generator()
+
+        maze_lines = build_ascii_lines(cfg, generator, show_path=True)
+
+        self.assertEqual(len(maze_lines), cfg.height * 2 + 1)
+        self.assertTrue(all(line.isascii() for line in maze_lines))
+        self.assertTrue(any("S" in line for line in maze_lines))
+        self.assertTrue(any("G" in line for line in maze_lines))
+        self.assertTrue(any("." in line for line in maze_lines))
+        self.assertTrue(any("#" in line for line in maze_lines))
+
+    def test_render_ascii_returns_ascii_panels_and_maze(self) -> None:
+        """Static ASCII render should avoid Unicode box-drawing glyphs."""
+        cfg, generator = self._build_generator()
+
+        rendered = render_ascii(cfg, generator, show_path=False)
+
+        self.assertTrue(rendered.isascii())
+        self.assertIn("A-Maze-ing", rendered)
+        self.assertIn("plain ASCII fallback", rendered)
+
+    def test_run_ascii_ui_falls_back_to_static_render_without_tty(self) -> None:
+        """ASCII UI should not prompt when stdin/stdout are not terminals."""
+        cfg, generator = self._build_generator()
+
+        with patch("sys.stdin.isatty", return_value=False):
+            with patch("sys.stdout.isatty", return_value=False):
+                with patch("builtins.input") as fake_input:
+                    run_ascii_ui(cfg, generator, regenerate=None)
+
+        fake_input.assert_not_called()
 
 
 if __name__ == "__main__":

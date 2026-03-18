@@ -8,7 +8,7 @@ from typing import Callable
 
 from app.errors import ConfigError, OutputError, RenderError
 from app.parser import MazeConfig, load_config
-from app.renderer_ascii import render_ascii
+from app.renderer_ascii import run_ascii_ui
 from app.renderer_curses import run_curses_ui
 from app.writer import write_output
 from mazegen import MazeGenerator
@@ -71,7 +71,7 @@ def _run_renderer(
 
     if requested == "ascii":
         _announce_renderer("ascii", detail="requested")
-        render_ascii(cfg, generator, show_path=False)
+        run_ascii_ui(cfg, generator, regenerate_and_save)
         return
 
     if requested == "curses":
@@ -99,7 +99,7 @@ def _run_renderer(
         print(f"Warning: curses unavailable: {exc}", file=sys.stderr)
 
     _announce_renderer("ascii", detail="auto fallback")
-    render_ascii(cfg, generator, show_path=False)
+    run_ascii_ui(cfg, generator, regenerate_and_save)
 
 
 def main(argv: list[str] | None = None) -> int:
