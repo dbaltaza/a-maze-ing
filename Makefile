@@ -17,6 +17,14 @@ install: build $(OUTPUTS)
 	$(PIP) install --upgrade pip
 	$(PIP) install -r $(REQ_FILE)
 	$(PIP) install .
+	@echo "Checking tkinter availability..."
+	@$(PYTHON) -c "import tkinter; print('tkinter: OK')" || { \
+		echo ""; \
+		echo "tkinter is missing for $(PYTHON)."; \
+		echo "On Ubuntu/Debian install it with:"; \
+		echo "  sudo apt-get update && sudo apt-get install python3-tk"; \
+		exit 1; \
+	}
 
 $(OUTPUTS):
 	mkdir -p $(OUTPUTS)

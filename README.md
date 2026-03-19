@@ -66,7 +66,13 @@ The project is architecturally split into two main components:
 
 ### Requirements
 - Python 3.10 or higher
-- Unix-like terminal (for curses support)
+- Tk support for the visual renderer
+
+On Ubuntu/Debian, install Tk before running the visual mode:
+```bash
+sudo apt-get update
+sudo apt-get install python3-tk
+```
 
 ### Install via Makefile
 ```bash

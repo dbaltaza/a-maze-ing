@@ -1,3 +1,5 @@
 build
 flake8
 mypy
+# Ubuntu system dependency for the visual renderer:
+# sudo apt-get install python3-tk
