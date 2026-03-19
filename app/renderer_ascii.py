@@ -103,7 +103,12 @@ def _cell_bounds(x: int, y: int) -> tuple[int, int, int, int, int, int]:
     return (left, left + step, top, top + 2, top + 1, left + 2)
 
 
-def _fill_span(canvas: list[list[str]], row: int, start: int, char: str) -> None:
+def _fill_span(
+    canvas: list[list[str]],
+    row: int,
+    start: int,
+    char: str,
+) -> None:
     """Fill a horizontal cell interior span with one character."""
     for offset in range(1, CELL_W + 1):
         canvas[row][start + offset] = char
@@ -229,7 +234,9 @@ def build_ascii_lines(
     for y in range(cfg.height):
         for x in range(cfg.width):
             walls = generator.get_cell_walls(x, y)
-            left, right, top, bottom, center_row, _center_col = _cell_bounds(x, y)
+            left, right, top, bottom, center_row, _center_col = _cell_bounds(
+                x, y
+            )
 
             draw_north = bool(walls & N)
             draw_south = bool(walls & S)
@@ -275,7 +282,10 @@ def build_ascii_lines(
             canvas[bottom][right] = _BLOCKED
 
     if active_path_sequence:
-        for current, nxt in zip(active_path_sequence, active_path_sequence[1:]):
+        for current, nxt in zip(
+            active_path_sequence,
+            active_path_sequence[1:],
+        ):
             _draw_path_segment(canvas, current, nxt)
 
     start_row, start_col = _interior_center(*cfg.entry)
@@ -438,7 +448,11 @@ def _render_interactive_maze_lines(
                 glyph = (
                     junction_glyph(row_index, col_index)
                     if ch == _CORNER
-                    else ("─" if ch == _H_WALL else "│")
+                    else (
+                        "─"
+                        if ch == _H_WALL
+                        else "│"
+                    )
                 )
                 color = wall_color
             elif ch == _BLOCKED:
