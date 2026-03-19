@@ -1,5 +1,5 @@
 [build-system]
-requires = []
+requires = ["tomli; python_version < '3.11'"]
 build-backend = "mazegen.build_backend"
 backend-path = ["."]
 
