@@ -72,6 +72,15 @@ class GeneratorLike(Protocol):
         """Return shortest path as NESW moves."""
 
 
+def _is_generated(generator: GeneratorLike) -> bool:
+    """Return whether the generator already has maze data available."""
+    try:
+        generator.blocked_cells
+    except RuntimeError:
+        return False
+    return True
+
+
 def _path_sequence(
     entry: tuple[int, int],
     moves: str,
@@ -501,6 +510,43 @@ def _interactive_screen(
     return "\n".join([*summary_panel, "", *styled_maze, "", *controls_panel])
 
 
+def _intro_frames(cfg: MazeConfig, *, use_color: bool) -> list[str]:
+    """Build a short animated intro shown before the first ASCII generation."""
+    seed_text = cfg.seed if cfg.seed is not None else "random"
+    header = _panel(
+        [
+            "A-Maze-ing",
+            f"{cfg.width}x{cfg.height}   {_mode_label(cfg.perfect)}",
+            f"entry {cfg.entry[0]},{cfg.entry[1]}   exit {cfg.exit[0]},{cfg.exit[1]}",
+            f"seed {seed_text}",
+        ],
+        use_color=use_color,
+        title=" BOOT ",
+    )
+    stages = [
+        ("loading maze core", "[#       ]"),
+        ("placing 42 mask", "[###     ]"),
+        ("arming generator", "[#####   ]"),
+        ("opening first walls", "[####### ]"),
+        ("starting live carve", "[########]"),
+    ]
+    frames: list[str] = []
+    for status, meter in stages:
+        body = _panel(
+            [
+                "ASCII renderer starts with a live build.",
+                "The maze is still empty at this point.",
+                "",
+                meter,
+                f"status {status}",
+            ],
+            use_color=use_color,
+            title=" INTRO ",
+        )
+        frames.append("\n".join([*header, "", *body]))
+    return frames
+
+
 def run_ascii_ui(
     cfg: MazeConfig,
     generator: GeneratorLike,
@@ -511,6 +557,8 @@ def run_ascii_ui(
 ) -> None:
     """Run a simple interactive terminal UI for the ASCII fallback."""
     if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        if not _is_generated(generator) and regenerate is not None:
+            regenerate(None)
         render_ascii(cfg, generator, show_path=False)
         return
 
@@ -534,6 +582,12 @@ def run_ascii_ui(
             use_color=use_color,
         )
         print(f"{_ANSI_CLEAR}{screen}", end="", flush=True)
+
+    def _play_intro() -> None:
+        """Render a short title animation before the first generation."""
+        for frame in _intro_frames(cfg, use_color=use_color):
+            print(f"{_ANSI_CLEAR}{frame}", end="", flush=True)
+            time.sleep(max(generate_delay_ms, 40) / 1000)
 
     def _animate_solve() -> str:
         """Animate the shortest path one cell at a time."""
@@ -583,6 +637,10 @@ def run_ascii_ui(
         except Exception as exc:  # pragma: no cover - runtime safeguard
             return f"Generation animation failed: {exc}"
         return "Generation animation complete"
+
+    if not _is_generated(generator):
+        _play_intro()
+        status = _animate_generation()
 
     while True:
         _draw(status)

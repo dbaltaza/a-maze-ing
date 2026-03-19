@@ -122,13 +122,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         cfg = load_config(config_path)
         generator = _build_generator(cfg)
-        _generate_and_write(cfg, generator)
 
         def regenerate_and_save(
             on_step: Callable[[], None] | None = None,
         ) -> None:
             """Regenerate the maze and persist the updated output file."""
             _generate_and_write(cfg, generator, on_step=on_step)
+
+        if cfg.renderer != "ascii":
+            _generate_and_write(cfg, generator)
 
         _run_renderer(cfg, generator, regenerate_and_save)
     except (

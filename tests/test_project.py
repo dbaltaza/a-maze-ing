@@ -530,6 +530,32 @@ class AsciiRendererTests(unittest.TestCase):
 
         fake_input.assert_not_called()
 
+    def test_run_ascii_ui_generates_before_static_render_when_needed(self) -> None:
+        """ASCII fallback should lazily generate if no maze exists yet."""
+        cfg = load_config(ROOT / "config.txt")
+        generator = MazeGenerator(
+            cfg.width,
+            cfg.height,
+            cfg.entry,
+            cfg.exit,
+            cfg.perfect,
+            cfg.seed,
+        )
+
+        def regenerate(
+            on_step: object | None = None,
+        ) -> None:
+            self.assertIsNone(on_step)
+            generator.generate()
+
+        with patch("sys.stdin.isatty", return_value=False):
+            with patch("sys.stdout.isatty", return_value=False):
+                with patch("builtins.input") as fake_input:
+                    run_ascii_ui(cfg, generator, regenerate=regenerate)
+
+        fake_input.assert_not_called()
+        self.assertTrue(generator.to_hex_lines())
+
 
 if __name__ == "__main__":
     try:
