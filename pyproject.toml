@@ -9,6 +9,9 @@ version = "1.0.0"
 description = "Reusable maze generation package for the 42 A-Maze-ing project."
 readme = "README.md"
 requires-python = ">=3.10"
+dependencies = [
+  "pydantic>=2,<3",
+]
 authors = [
   { name = "luispais" },
 ]

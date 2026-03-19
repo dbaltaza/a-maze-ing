@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 import re
+
+from pydantic import BaseModel, ConfigDict, ValidationError, ValidationInfo
+from pydantic import field_validator, model_validator
 
 from .errors import ConfigError
 
@@ -22,9 +24,10 @@ _INT_MAX = 2**31 - 1
 _INT_PATTERN = re.compile(r"^[+-]?\d+$")
 
 
-@dataclass(frozen=True)
-class MazeConfig:
+class MazeConfig(BaseModel):
     """Validated maze configuration."""
+
+    model_config = ConfigDict(frozen=True)
 
     width: int
     height: int
@@ -36,6 +39,65 @@ class MazeConfig:
     renderer: str = "auto"
     generate_delay_ms: int = 8
     solve_delay_ms: int = 25
+
+    @field_validator("width", "height")
+    @classmethod
+    def _validate_dimensions(cls, value: int, info: ValidationInfo) -> int:
+        """Require strictly positive maze dimensions."""
+        if value <= 0:
+            raise ValueError(f"{info.field_name.upper()} must be > 0")
+        return value
+
+    @field_validator("output_file")
+    @classmethod
+    def _validate_output_file(cls, value: str) -> str:
+        """Reject empty output targets after trimming whitespace."""
+        output_file = value.strip()
+        if not output_file:
+            raise ValueError("OUTPUT_FILE must not be empty")
+        return output_file
+
+    @field_validator("renderer")
+    @classmethod
+    def _validate_renderer(cls, value: str) -> str:
+        """Normalize and validate the configured renderer name."""
+        renderer = value.strip().lower() or "auto"
+        if renderer not in _RENDERERS:
+            raise ValueError(
+                f"RENDERER must be one of {', '.join(sorted(_RENDERERS))}"
+            )
+        return renderer
+
+    @field_validator("generate_delay_ms", "solve_delay_ms")
+    @classmethod
+    def _validate_delays(cls, value: int, info: ValidationInfo) -> int:
+        """Require non-negative animation delays."""
+        if value < 0:
+            raise ValueError(f"{info.field_name.upper()} must be >= 0")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_coordinates(self) -> MazeConfig:
+        """Ensure entry and exit are distinct and inside maze bounds."""
+        if not (
+            0 <= self.entry[0] < self.width
+            and 0 <= self.entry[1] < self.height
+        ):
+            raise ValueError(
+                f"ENTRY out of bounds for maze {self.width}x{self.height}: "
+                f"{self.entry}"
+            )
+        if not (
+            0 <= self.exit[0] < self.width
+            and 0 <= self.exit[1] < self.height
+        ):
+            raise ValueError(
+                f"EXIT out of bounds for maze {self.width}x{self.height}: "
+                f"{self.exit}"
+            )
+        if self.entry == self.exit:
+            raise ValueError("ENTRY and EXIT must be different")
+        return self
 
 
 def _parse_int(value: str, key: str, *, line_no: int | None = None) -> int:
@@ -134,33 +196,17 @@ def load_config(path: str | Path) -> MazeConfig:
     height_raw, height_line = raw_values["HEIGHT"]
     width = _parse_int(width_raw, "WIDTH", line_no=width_line)
     height = _parse_int(height_raw, "HEIGHT", line_no=height_line)
-    if width <= 0:
-        raise ConfigError("WIDTH must be > 0")
-    if height <= 0:
-        raise ConfigError("HEIGHT must be > 0")
 
     entry_raw, entry_line = raw_values["ENTRY"]
     exit_raw, exit_line = raw_values["EXIT"]
     entry = _parse_coord(entry_raw, "ENTRY", line_no=entry_line)
     exit_ = _parse_coord(exit_raw, "EXIT", line_no=exit_line)
-    if not (0 <= entry[0] < width and 0 <= entry[1] < height):
-        raise ConfigError(
-            f"ENTRY out of bounds for maze {width}x{height}: {entry}"
-        )
-    if not (0 <= exit_[0] < width and 0 <= exit_[1] < height):
-        raise ConfigError(
-            f"EXIT out of bounds for maze {width}x{height}: {exit_}"
-        )
-    if entry == exit_:
-        raise ConfigError("ENTRY and EXIT must be different")
 
     perfect_raw, perfect_line = raw_values["PERFECT"]
     perfect = _parse_bool(perfect_raw, "PERFECT", line_no=perfect_line)
 
     output_raw, _output_line = raw_values["OUTPUT_FILE"]
-    output_file = output_raw.strip()
-    if not output_file:
-        raise ConfigError("OUTPUT_FILE must not be empty")
+    output_file = output_raw
 
     seed: int | None = None
     if "SEED" in raw_values:
@@ -169,13 +215,8 @@ def load_config(path: str | Path) -> MazeConfig:
             seed = _parse_int(seed_raw, "SEED", line_no=seed_line)
 
     if "RENDERER" in raw_values:
-        renderer_raw, renderer_line = raw_values["RENDERER"]
-        renderer = renderer_raw.strip().lower() or "auto"
-        if renderer not in _RENDERERS:
-            raise ConfigError(
-                f"RENDERER must be one of {', '.join(sorted(_RENDERERS))}"
-                f" on line {renderer_line}"
-            )
+        renderer_raw, _renderer_line = raw_values["RENDERER"]
+        renderer = renderer_raw
     else:
         renderer = "auto"
 
@@ -185,8 +226,6 @@ def load_config(path: str | Path) -> MazeConfig:
         generate_delay_ms = _parse_int(
             delay_raw, "GENERATE_DELAY_MS", line_no=delay_line
         )
-        if generate_delay_ms < 0:
-            raise ConfigError("GENERATE_DELAY_MS must be >= 0")
 
     solve_delay_ms = 25
     if "SOLVE_DELAY_MS" in raw_values:
@@ -194,18 +233,19 @@ def load_config(path: str | Path) -> MazeConfig:
         solve_delay_ms = _parse_int(
             delay_raw, "SOLVE_DELAY_MS", line_no=delay_line
         )
-        if solve_delay_ms < 0:
-            raise ConfigError("SOLVE_DELAY_MS must be >= 0")
-
-    return MazeConfig(
-        width=width,
-        height=height,
-        entry=entry,
-        exit=exit_,
-        output_file=output_file,
-        perfect=perfect,
-        seed=seed,
-        renderer=renderer,
-        generate_delay_ms=generate_delay_ms,
-        solve_delay_ms=solve_delay_ms,
-    )
+    try:
+        return MazeConfig(
+            width=width,
+            height=height,
+            entry=entry,
+            exit=exit_,
+            output_file=output_file,
+            perfect=perfect,
+            seed=seed,
+            renderer=renderer,
+            generate_delay_ms=generate_delay_ms,
+            solve_delay_ms=solve_delay_ms,
+        )
+    except ValidationError as exc:
+        first_error = exc.errors(include_url=False)[0]
+        raise ConfigError(first_error["msg"]) from exc
