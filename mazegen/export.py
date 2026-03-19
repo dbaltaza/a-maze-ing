@@ -1,15 +1,13 @@
-"""Output-file writer for generated mazes."""
+"""Output serialization helpers for generated mazes."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Protocol
 
-from .parser import MazeConfig
 
-
-class GeneratorLike(Protocol):
-    """Protocol for the generator methods used by this module."""
+class ExportableMaze(Protocol):
+    """Protocol for generators that can be written to output files."""
 
     def to_hex_lines(self) -> list[str]:
         """Return maze rows in hexadecimal encoding."""
@@ -20,26 +18,30 @@ class GeneratorLike(Protocol):
 
 def write_output(
     path: str | Path,
-    cfg: MazeConfig,
-    generator: GeneratorLike,
+    *,
+    width: int,
+    height: int,
+    entry: tuple[int, int],
+    exit: tuple[int, int],
+    generator: ExportableMaze,
 ) -> None:
-    """Write maze output file using the project-required format."""
+    """Write maze output using the project-required file format."""
     output_path = Path(path)
     hex_lines = generator.to_hex_lines()
 
-    if len(hex_lines) != cfg.height:
+    if len(hex_lines) != height:
         raise ValueError(
-            f"generator returned {len(hex_lines)} rows, expected {cfg.height}"
+            f"generator returned {len(hex_lines)} rows, expected {height}"
         )
-    if any(len(line) != cfg.width for line in hex_lines):
+    if any(len(line) != width for line in hex_lines):
         raise ValueError("generator returned rows with unexpected width")
 
     payload = "\n".join(
         [
             *hex_lines,
             "",
-            f"{cfg.entry[0]},{cfg.entry[1]}",
-            f"{cfg.exit[0]},{cfg.exit[1]}",
+            f"{entry[0]},{entry[1]}",
+            f"{exit[0]},{exit[1]}",
             generator.path_moves(),
         ]
     )

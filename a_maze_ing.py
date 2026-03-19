@@ -10,8 +10,7 @@ from app.errors import ConfigError, OutputError, RenderError
 from app.parser import MazeConfig, load_config
 from app.renderer_ascii import run_ascii_ui
 from app.renderer_curses import run_curses_ui
-from app.writer import write_output
-from mazegen import MazeGenerator
+from mazegen import MazeGenerator, write_output
 
 
 def _build_generator(cfg: MazeConfig) -> MazeGenerator:
@@ -45,7 +44,14 @@ def _generate_and_write(
         raise RuntimeError(f"maze generation failed: {exc}") from exc
 
     try:
-        write_output(cfg.output_file, cfg, generator)
+        write_output(
+            cfg.output_file,
+            width=cfg.width,
+            height=cfg.height,
+            entry=cfg.entry,
+            exit=cfg.exit,
+            generator=generator,
+        )
     except OSError as exc:
         msg = f"could not write output file '{cfg.output_file}': {exc}"
         raise OutputError(msg) from exc
