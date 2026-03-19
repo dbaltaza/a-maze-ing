@@ -117,7 +117,10 @@ def _run_renderer(
 def main(argv: list[str] | None = None) -> int:
     """Application entrypoint."""
     args = sys.argv[1:] if argv is None else argv[1:]
-    config_path = Path(args[0]) if args else Path("config.txt")
+    if len(args) != 1:
+        print("Usage: python3 a_maze_ing.py config.txt", file=sys.stderr)
+        return 1
+    config_path = Path(args[0])
 
     try:
         cfg = load_config(config_path)
