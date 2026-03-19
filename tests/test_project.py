@@ -139,6 +139,30 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(cfg.seed, 42)
         self.assertEqual(cfg.renderer, "mlx")
 
+    def test_load_config_accepts_aa_style_visual_keys(self) -> None:
+        """AA config keys should map cleanly to the current config model."""
+        config_path = self._write_config(
+            [
+                "WIDTH=30",
+                "HEIGHT=30",
+                "ENTRY=0, 0",
+                "EXIT=29,29",
+                "OUTPUT_FILE=maze.txt",
+                "PERFECT=false",
+                "SEED=123456",
+                "DISPLAY_MODE=mlx",
+                "ALGORITHM=prim",
+                "DENSITY=80",
+            ]
+        )
+
+        cfg = load_config(config_path)
+
+        self.assertEqual(cfg.renderer, "mlx")
+        self.assertEqual(cfg.algorithm, "prim")
+        self.assertEqual(cfg.density, 80)
+        self.assertFalse(cfg.perfect)
+
     def test_load_config_rejects_unknown_renderer(self) -> None:
         """Renderer must stay within the supported modes."""
         config_path = self._write_config(
@@ -155,6 +179,25 @@ class ParserTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             ConfigError, "RENDERER must be one of: ascii, mlx"
+        ):
+            load_config(config_path)
+
+    def test_load_config_rejects_invalid_algorithm(self) -> None:
+        """AA algorithm field should stay within the accepted values."""
+        config_path = self._write_config(
+            [
+                "WIDTH=9",
+                "HEIGHT=7",
+                "ENTRY=0,0",
+                "EXIT=8,6",
+                "OUTPUT_FILE=maze.txt",
+                "PERFECT=True",
+                "ALGORITHM=kruskal",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ConfigError, "ALGORITHM must be one of: prim, dfs"
         ):
             load_config(config_path)
 

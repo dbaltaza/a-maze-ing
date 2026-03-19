@@ -12,6 +12,9 @@ _REQUIRED_KEYS = {"WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE", "PERFECT"}
 _OPTIONAL_KEYS = {
     "SEED",
     "RENDERER",
+    "DISPLAY_MODE",
+    "ALGORITHM",
+    "DENSITY",
 }
 _KNOWN_KEYS = _REQUIRED_KEYS | _OPTIONAL_KEYS
 _INT_MIN = -(2**31)
@@ -31,6 +34,8 @@ class MazeConfig:
     perfect: bool
     seed: int | None = None
     renderer: str = "mlx"
+    algorithm: str = "prim"
+    density: int = 0
 
 
 def _parse_int(value: str, key: str, *, line_no: int | None = None) -> int:
@@ -164,13 +169,41 @@ def load_config(path: str | Path) -> MazeConfig:
             seed = _parse_int(seed_raw, "SEED", line_no=seed_line)
 
     renderer = "mlx"
-    if "RENDERER" in raw_values:
+    renderer_key = None
+    renderer_line = None
+    if "DISPLAY_MODE" in raw_values:
+        renderer_raw, renderer_line = raw_values["DISPLAY_MODE"]
+        renderer_key = "DISPLAY_MODE"
+    elif "RENDERER" in raw_values:
         renderer_raw, renderer_line = raw_values["RENDERER"]
+        renderer_key = "RENDERER"
+    else:
+        renderer_raw = ""
+
+    if renderer_key is not None:
         renderer = renderer_raw.strip().lower() or "mlx"
         if renderer not in {"ascii", "mlx"}:
             raise ConfigError(
-                f"RENDERER must be one of: ascii, mlx on line {renderer_line}"
+                f"{renderer_key} must be one of: ascii, mlx on line {renderer_line}"
             )
+
+    algorithm = "prim"
+    if "ALGORITHM" in raw_values:
+        algorithm_raw, algorithm_line = raw_values["ALGORITHM"]
+        algorithm = algorithm_raw.strip().lower() or "prim"
+        if algorithm not in {"prim", "dfs"}:
+            raise ConfigError(
+                f"ALGORITHM must be one of: prim, dfs on line {algorithm_line}"
+            )
+
+    density = 0
+    if "DENSITY" in raw_values:
+        density_raw, density_line = raw_values["DENSITY"]
+        density = _parse_int(density_raw, "DENSITY", line_no=density_line)
+        if not 0 <= density <= 100:
+            raise ConfigError("DENSITY must be between 0 and 100")
+        if not perfect and density > 95:
+            raise ConfigError("DENSITY must be <= 95 when PERFECT is false")
 
     return MazeConfig(
         width=width,
@@ -181,4 +214,6 @@ def load_config(path: str | Path) -> MazeConfig:
         perfect=perfect,
         seed=seed,
         renderer=renderer,
+        algorithm=algorithm,
+        density=density,
     )

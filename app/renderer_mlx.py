@@ -1,176 +1,129 @@
-"""Legacy MLX renderer ported from the AA implementation."""
+"""AA-style visual renderer with the same config contract and controls."""
 
 from __future__ import annotations
 
-from pathlib import Path
-import sys
-from typing import Any
-
-try:
-    from mlx import Mlx
-except ImportError:
-    mlx_src = (
-        Path(__file__).resolve().parents[1]
-        / "AA"
-        / "mlx_CLXV"
-        / "python"
-        / "src"
-    )
-    if mlx_src.exists() and str(mlx_src) not in sys.path:
-        sys.path.insert(0, str(mlx_src))
-    try:
-        from mlx import Mlx
-    except ImportError as exc:
-        raise RuntimeError(
-            "MLX renderer requested but Python module 'mlx' is not available. "
-            "Install the MLX Python bindings or set RENDERER=ascii."
-        ) from exc
+import tkinter as tk
 
 from app.parser import MazeConfig
 from app.writer import write_output
 from mazegen import MazeGenerator
 
-WHITE = 0xFFFFFF
-GREEN = 0x00FF00
-RED = 0xFF0000
-BLUE = 0x0000FF
-BLACK = 0x000000
-KESC = 65307
-KUP = 65362
-KDOWN = 65364
-KRIGHT = 65363
-KLEFT = 65361
-KA = 97
-KB = 98
-KD = 100
-KG = 103
-KP = 112
-KR = 114
-KS = 115
-KW = 119
-K1 = 49
-K2 = 50
+WHITE = "#ffffff"
+GREEN = "#00ff00"
+RED = "#ff0000"
+BLUE = "#0000ff"
+BLACK = "#000000"
+CELL_SIZE = 20
+INNER_SIZE = 18
+INNER_OFFSET = 1
 
 
 class VisualizeMaze:
-    """Render the maze and handle keyboard interaction through MLX."""
+    """Render the maze with the AA look and interaction model."""
 
     def __init__(self, maze: MazeGenerator, cfg: MazeConfig) -> None:
-        self.motor = Mlx()
-        self.ptr = self.motor.mlx_init()
-        self.window = self.motor.mlx_new_window(
-            self.ptr,
-            maze.width * 20,
-            maze.height * 20,
-            "A-Maze-ing",
-        )
-        self.color = WHITE
+        self.maze = maze
+        self.cfg = cfg
         self.width = maze.width
         self.height = maze.height
         self.play = False
-        self.maze = maze
-        self.cfg = cfg
         self.player = maze.entry
         self.red = 2
         self.green = 2
         self.blue = 2
+        self.wall_color = WHITE
         self.show_sol = False
-        self.error = False
-        self.create_images()
 
-    def create_images(self) -> None:
-        """Generate the cached tile sprites."""
-        self.images = [self.new_image(i) for i in range(16)]
-        self.images.append(self.full_square(GREEN))
-        self.images.append(self.full_square(RED))
-        self.images.append(self.full_square(BLACK))
-        self.images.append(self.full_square(BLUE))
-
-    def full_square(self, color: int) -> Any:
-        """Create one solid 18x18 cell fill image."""
-        image = self.motor.mlx_new_image(self.ptr, 18, 18)
-        img_mem, _bpp, size_line, _fmt = self.motor.mlx_get_data_addr(image)
-        for x in range(18):
-            for y in range(18):
-                self.put_pixel(img_mem, x, y, color, size_line)
-        return image
-
-    def new_image(self, tile_type: int) -> Any:
-        """Create one wall tile matching the AA visuals."""
-        image = self.motor.mlx_new_image(self.ptr, 20, 20)
-        img_mem, _bpp, size_line, _fmt = self.motor.mlx_get_data_addr(image)
-        if tile_type == 15:
-            for x in range(20):
-                for y in range(20):
-                    self.put_pixel(img_mem, x, y, self.color, size_line)
-            return image
-        for x in range(20):
-            for y in range(20):
-                self.put_pixel(img_mem, x, y, BLACK, size_line)
-        if tile_type & 1:
-            for x in range(20):
-                self.put_pixel(img_mem, x, 0, self.color, size_line)
-        if tile_type & 2:
-            for y in range(20):
-                self.put_pixel(img_mem, 19, y, self.color, size_line)
-        if tile_type & 4:
-            for x in range(20):
-                self.put_pixel(img_mem, x, 19, self.color, size_line)
-        if tile_type & 8:
-            for y in range(20):
-                self.put_pixel(img_mem, 0, y, self.color, size_line)
-        return image
-
-    @staticmethod
-    def put_pixel(
-        addr: memoryview,
-        x: int,
-        y: int,
-        color: int,
-        size_line: int,
-    ) -> None:
-        """Write one pixel into the MLX image buffer."""
-        offset = y * size_line + x * 4
-        addr[offset + 0] = color & 0xFF
-        addr[offset + 1] = (color >> 8) & 0xFF
-        addr[offset + 2] = (color >> 16) & 0xFF
-        addr[offset + 3] = 0xFF
+        self.root = tk.Tk()
+        self.root.title("A-Maze-ing")
+        self.root.resizable(False, False)
+        self.canvas = tk.Canvas(
+            self.root,
+            width=self.width * CELL_SIZE,
+            height=self.height * CELL_SIZE,
+            bg=BLACK,
+            highlightthickness=0,
+        )
+        self.canvas.pack()
+        self.root.bind("<KeyPress>", self.key_hook)
+        self.root.protocol("WM_DELETE_WINDOW", self.close_mlx)
 
     def draw_maze(self) -> None:
-        """Render the full maze, entry, exit, and optional solution path."""
-        self.motor.mlx_clear_window(self.ptr, self.window)
+        """Redraw the full maze using the AA tile geometry."""
+        self.canvas.delete("all")
         for y in range(self.height):
             for x in range(self.width):
-                self.motor.mlx_put_image_to_window(
-                    self.ptr,
-                    self.window,
-                    self.images[self.maze.get_cell_walls(x, y)],
-                    20 * x,
-                    20 * y,
-                )
-        self.motor.mlx_put_image_to_window(
-            self.ptr,
-            self.window,
-            self.images[16],
-            20 * self.maze.entry[0] + 1,
-            20 * self.maze.entry[1] + 1,
-        )
-        self.motor.mlx_put_image_to_window(
-            self.ptr,
-            self.window,
-            self.images[17],
-            20 * self.maze.exit[0] + 1,
-            20 * self.maze.exit[1] + 1,
-        )
+                self._draw_tile(x, y, self.maze.get_cell_walls(x, y))
+
+        self._draw_fill(self.maze.entry, GREEN)
+        self._draw_fill(self.maze.exit, RED)
+
         if self.show_sol:
             self.draw_solution()
-        self.motor.mlx_do_sync(self.ptr)
+        if self.play:
+            self._draw_fill(self.player, GREEN)
 
-    def key_hook(self, key: int, _param: None) -> None:
-        """Apply the legacy control scheme."""
-        if key == KESC:
+        self.root.update_idletasks()
+
+    def _draw_tile(self, x: int, y: int, tile_type: int) -> None:
+        """Draw one cell in the same visual style as AA."""
+        x0 = x * CELL_SIZE
+        y0 = y * CELL_SIZE
+        x1 = x0 + CELL_SIZE
+        y1 = y0 + CELL_SIZE
+        if tile_type == 15:
+            self.canvas.create_rectangle(
+                x0,
+                y0,
+                x1,
+                y1,
+                fill=self.wall_color,
+                outline=self.wall_color,
+                width=0,
+            )
+            return
+
+        self.canvas.create_rectangle(
+            x0,
+            y0,
+            x1,
+            y1,
+            fill=BLACK,
+            outline=BLACK,
+            width=0,
+        )
+        if tile_type & 1:
+            self.canvas.create_line(x0, y0, x1, y0, fill=self.wall_color)
+        if tile_type & 2:
+            self.canvas.create_line(x1 - 1, y0, x1 - 1, y1, fill=self.wall_color)
+        if tile_type & 4:
+            self.canvas.create_line(x0, y1 - 1, x1, y1 - 1, fill=self.wall_color)
+        if tile_type & 8:
+            self.canvas.create_line(x0, y0, x0, y1, fill=self.wall_color)
+
+    def _draw_fill(self, coord: tuple[int, int], color: str) -> None:
+        """Draw one 18x18 interior block."""
+        x, y = coord
+        x0 = x * CELL_SIZE + INNER_OFFSET
+        y0 = y * CELL_SIZE + INNER_OFFSET
+        x1 = x0 + INNER_SIZE
+        y1 = y0 + INNER_SIZE
+        self.canvas.create_rectangle(
+            x0,
+            y0,
+            x1,
+            y1,
+            fill=color,
+            outline=color,
+            width=0,
+        )
+
+    def key_hook(self, event: tk.Event[tk.Misc]) -> None:
+        """Handle the AA key bindings."""
+        key = event.keysym.lower()
+        if key == "escape":
             self.close_mlx()
-        if key == K1:
+        if key == "1":
             maze = MazeGenerator(
                 width=self.cfg.width,
                 height=self.cfg.height,
@@ -186,11 +139,11 @@ class VisualizeMaze:
             self.player = maze.entry
             self.draw_maze()
             self.save_maze_to_file_mlx()
-        if key == K2:
+        if key == "2":
             self.play = False
             self.show_sol = not self.show_sol
             self.draw_maze()
-        if key == KP:
+        if key == "p":
             self.show_sol = False
             self.player = self.maze.entry
             self.play = not self.play
@@ -199,90 +152,63 @@ class VisualizeMaze:
                 self.draw_maze()
             else:
                 print("GAME MODE: ON")
-        if (key == KW or key == KUP) and self.play:
+                self.draw_maze()
+        if key in {"w", "up"} and self.play:
             self.move_player((0, -1))
-        if (key == KA or key == KLEFT) and self.play:
+        if key in {"a", "left"} and self.play:
             self.move_player((-1, 0))
-        if (key == KS or key == KDOWN) and self.play:
+        if key in {"s", "down"} and self.play:
             self.move_player((0, 1))
-        if (key == KD or key == KRIGHT) and self.play:
+        if key in {"d", "right"} and self.play:
             self.move_player((1, 0))
-        if key == KR or key == KG or key == KB:
+        if key in {"r", "g", "b"}:
             self.play = False
             self.rotate_colors(key)
 
     def move_player(self, direction: tuple[int, int]) -> None:
-        """Move the player if the target wall is open."""
+        """Move the player when the corresponding wall bit is open."""
         x, y = self.player
         walls = self.maze.get_cell_walls(x, y)
         directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
         if walls & (1 << directions.index(direction)):
             return
-        self.motor.mlx_put_image_to_window(
-            self.ptr,
-            self.window,
-            self.images[18],
-            20 * x + 1,
-            20 * y + 1,
-        )
         self.player = (x + direction[0], y + direction[1])
         if self.player == self.maze.exit:
             self.play = False
             self.draw_maze()
             print("WINNER!")
             return
-        self.motor.mlx_put_image_to_window(
-            self.ptr,
-            self.window,
-            self.images[16],
-            20 * self.player[0] + 1,
-            20 * self.player[1] + 1,
-        )
-        self.motor.mlx_do_sync(self.ptr)
+        self.draw_maze()
 
-    def rotate_colors(self, key: int) -> None:
+    def rotate_colors(self, key: str) -> None:
         """Cycle wall colors exactly like the AA renderer."""
-        if key == KR:
+        if key == "r":
             self.red = (self.red - 1) % 3
-        elif key == KG:
+        elif key == "g":
             self.green = (self.green - 1) % 3
-        elif key == KB:
+        elif key == "b":
             self.blue = (self.blue - 1) % 3
-        self.color = (
-            127 * self.red * 2**16 + 127 * self.green * 2**8 + 127 * self.blue
-        )
-        self.create_images()
+        color = 127 * self.red * 2**16 + 127 * self.green * 2**8 + 127 * self.blue
+        self.wall_color = f"#{color:06x}"
         self.draw_maze()
 
     def draw_solution(self) -> None:
-        """Overlay the solution path using blue interior blocks."""
-        for x, y in self.maze.solve_shortest()[1:-1]:
-            self.motor.mlx_put_image_to_window(
-                self.ptr,
-                self.window,
-                self.images[19],
-                20 * x + 1,
-                20 * y + 1,
-            )
+        """Overlay the path in blue blocks, excluding entry and exit."""
+        for coord in self.maze.solve_shortest()[1:-1]:
+            self._draw_fill(coord, BLUE)
 
-    def close_mlx(self, *_args: object) -> None:
-        """Release the MLX window and display context."""
-        self.motor.mlx_destroy_window(self.ptr, self.window)
-        self.motor.mlx_release(self.ptr)
+    def close_mlx(self) -> None:
+        """Close the window."""
+        self.root.destroy()
 
     def save_maze_to_file_mlx(self) -> None:
-        """Persist the current maze after an in-window regeneration."""
-        try:
-            write_output(self.cfg.output_file, self.cfg, self.maze)
-            print(f"Maze successfully saved to {self.cfg.output_file}")
-        except (OSError, ValueError) as exc:
-            print(f"Error writing output file: {exc}", file=sys.stderr)
-            self.error = True
-            self.close_mlx()
+        """Persist the current maze after in-window regeneration."""
+        write_output(self.cfg.output_file, self.cfg, self.maze)
+        print(f"Maze successfully saved to {self.cfg.output_file}")
 
 
 def draw_mlx_maze(maze: MazeGenerator, cfg: MazeConfig) -> None:
-    """Start the MLX window with the AA key bindings and visuals."""
+    """Launch the AA-style visual renderer."""
     vis = VisualizeMaze(maze, cfg)
     vis.draw_maze()
     print("MLX KEY INSTRUCTIONS:")
@@ -292,8 +218,4 @@ def draw_mlx_maze(maze: MazeGenerator, cfg: MazeConfig) -> None:
     print(" - wasd / arrows: move (only in play mode)")
     print(" - rgb: change wall colours")
     print(" - esc: close window")
-    vis.motor.mlx_hook(vis.window, 33, 0, VisualizeMaze.close_mlx, vis)
-    vis.motor.mlx_key_hook(vis.window, vis.key_hook, None)
-    vis.motor.mlx_loop(vis.ptr)
-    if vis.error:
-        raise SystemExit(1)
+    vis.root.mainloop()
