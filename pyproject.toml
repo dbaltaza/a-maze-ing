@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mazegen-a-maze-ing"
+name = "mazegen"
 version = "1.0.0"
 description = "Reusable maze generation package for the 42 A-Maze-ing project."
 readme = "README.md"

@@ -81,14 +81,7 @@ pip install .
 
 ### Build as Package
 ```bash
-# Build wheel
-python3 -m pip wheel . -w .
-
-# Build source distribution
-python3 - <<'PY'
-from mazegen import build_backend
-print(build_backend.build_sdist("."))
-PY
+python3 -m build --outdir .
 ```
 
 ---

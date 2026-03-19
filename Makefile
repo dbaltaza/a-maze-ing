@@ -4,7 +4,7 @@ CONFIG ?= config.txt
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install run debug clean lint lint-strict
+.PHONY: help install run debug clean lint lint-strict package
 
 help:
 	@printf "\nA-Maze-ing\n\n"
@@ -13,6 +13,7 @@ help:
 	@printf "  %-12s %s\n" "make install" "Install project and dev tools"
 	@printf "  %-12s %s\n" "make lint" "Run flake8 and mypy"
 	@printf "  %-12s %s\n" "make lint-strict" "Run flake8 and strict mypy"
+	@printf "  %-12s %s\n" "make package" "Build mazegen wheel and sdist at repo root"
 	@printf "  %-12s %s\n" "make clean" "Remove build and cache artifacts"
 	@printf "\n"
 
@@ -35,7 +36,7 @@ clean:
 	find . -type d -name "__pycache__" -prune -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -prune -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -prune -exec rm -rf {} +
-	rm -rf build dist *.egg-info
+	rm -rf build dist *.egg-info mazegen-*.whl mazegen-*.tar.gz
 
 lint:
 	@printf "\n[lint] running static checks\n"
@@ -46,3 +47,7 @@ lint-strict:
 	@printf "\n[lint-strict] running strict static checks\n"
 	$(PYTHON) -m flake8 .
 	$(PYTHON) -m mypy . --strict
+
+package:
+	@printf "\n[package] building mazegen artifacts at repository root\n"
+	$(PYTHON) -m build --outdir .
