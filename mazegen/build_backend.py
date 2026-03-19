@@ -13,7 +13,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_DIR = ROOT / "mazegen"

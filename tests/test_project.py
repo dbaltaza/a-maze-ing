@@ -5,8 +5,10 @@ from __future__ import annotations
 import sys
 import tempfile
 import time
+from types import TracebackType
 import unittest
 from pathlib import Path
+from typing import Any, TypeAlias, cast
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,9 +16,18 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.errors import ConfigError  # noqa: E402
-from app.parser import _INT_MAX, load_config  # noqa: E402
-from app.renderer_ascii import build_ascii_lines, render_ascii, run_ascii_ui  # noqa: E402
+from app.parser import _INT_MAX, MazeConfig, load_config  # noqa: E402
+from app.renderer_ascii import (  # noqa: E402
+    build_ascii_lines,
+    render_ascii,
+    run_ascii_ui,
+)
 from mazegen import MazeGenerator  # noqa: E402
+
+ExcInfo: TypeAlias = (
+    tuple[type[BaseException], BaseException, TracebackType]
+    | tuple[None, None, None]
+)
 
 
 class FancyTestResult(unittest.TextTestResult):
@@ -42,7 +53,7 @@ class FancyTestResult(unittest.TextTestResult):
     def addFailure(
         self,
         test: unittest.case.TestCase,
-        err: tuple[type[BaseException], BaseException, object],
+        err: ExcInfo,
     ) -> None:
         super().addFailure(test, err)
         self._finish_current(test, "FAIL")
@@ -50,7 +61,7 @@ class FancyTestResult(unittest.TextTestResult):
     def addError(
         self,
         test: unittest.case.TestCase,
-        err: tuple[type[BaseException], BaseException, object],
+        err: ExcInfo,
     ) -> None:
         super().addError(test, err)
         self._finish_current(test, "ERROR")
@@ -59,7 +70,11 @@ class FancyTestResult(unittest.TextTestResult):
         super().addSkip(test, reason)
         self._finish_current(test, "SKIP", suffix=f" ({reason})")
 
-    def addExpectedFailure(self, test: unittest.case.TestCase, err: object) -> None:
+    def addExpectedFailure(
+        self,
+        test: unittest.case.TestCase,
+        err: ExcInfo,
+    ) -> None:
         super().addExpectedFailure(test, err)
         self._finish_current(test, "XFAIL")
 
@@ -86,16 +101,19 @@ class FancyTestResult(unittest.TextTestResult):
 class FancyTestRunner(unittest.TextTestRunner):
     """Small custom runner with an ANSI summary banner."""
 
-    resultclass = FancyTestResult
+    resultclass = FancyTestResult  # type: ignore[assignment]
 
-    def __init__(self, **kwargs: object) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(descriptions=False, **kwargs)
 
-    def run(self, test: unittest.suite.TestSuite) -> unittest.result.TestResult:
+    def run(
+        self,
+        test: unittest.suite.TestSuite | unittest.case.TestCase,
+    ) -> FancyTestResult:
         """Print a compact header before delegating to unittest."""
         self.stream.write("\n=== A-Maze-ing Test Suite ===\n")
         self.stream.flush()
-        result = super().run(test)
+        result = cast(FancyTestResult, super().run(test))
         banner = "OK" if result.wasSuccessful() else "FAIL"
         self.stream.write(
             f"=== {banner} {result.testsRun} test(s) checked ===\n"
@@ -384,7 +402,7 @@ class GeneratorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must be different"):
             MazeGenerator(9, 7, (0, 0), (0, 0))
         with self.assertRaisesRegex(TypeError, "must be a tuple"):
-            MazeGenerator(9, 7, [0, 0], (8, 6))
+            MazeGenerator(9, 7, [0, 0], (8, 6))  # type: ignore[arg-type]
 
     def test_generator_rejects_invalid_step_stride(self) -> None:
         """Generation callback stride must stay positive."""
@@ -470,7 +488,7 @@ class GeneratorTests(unittest.TestCase):
 class AsciiRendererTests(unittest.TestCase):
     """Keep the fallback renderer plain-text safe and usable."""
 
-    def _build_generator(self) -> tuple[object, MazeGenerator]:
+    def _build_generator(self) -> tuple[MazeConfig, MazeGenerator]:
         """Create a generated maze using the default project config."""
         cfg = load_config(ROOT / "config.txt")
         generator = MazeGenerator(
@@ -519,7 +537,9 @@ class AsciiRendererTests(unittest.TestCase):
         self.assertIn("A-Maze-ing", rendered)
         self.assertIn("plain ASCII fallback", rendered)
 
-    def test_run_ascii_ui_falls_back_to_static_render_without_tty(self) -> None:
+    def test_run_ascii_ui_falls_back_to_static_render_without_tty(
+        self,
+    ) -> None:
         """ASCII UI should not prompt when stdin/stdout are not terminals."""
         cfg, generator = self._build_generator()
 

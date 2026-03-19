@@ -170,7 +170,10 @@ def build_ascii_lines(
     if path_sequence is not None:
         active_path_sequence = list(path_sequence)
     elif show_path:
-        active_path_sequence = _path_sequence(cfg.entry, generator.path_moves())
+        active_path_sequence = _path_sequence(
+            cfg.entry,
+            generator.path_moves(),
+        )
     else:
         active_path_sequence = []
 
@@ -235,7 +238,10 @@ def build_ascii_lines(
             canvas[bottom][right] = _BLOCKED
 
     if active_path_sequence:
-        for current, nxt in zip(active_path_sequence, active_path_sequence[1:]):
+        for current, nxt in zip(
+            active_path_sequence,
+            active_path_sequence[1:],
+        ):
             cur_row, cur_col = _interior_center(*current)
             next_row, next_col = _interior_center(*nxt)
             canvas[cur_row][cur_col] = _PATH
@@ -349,7 +355,12 @@ def _style_maze_line(
     return "".join(parts)
 
 
-def _panel(lines: list[str], *, use_color: bool, title: str | None = None) -> list[str]:
+def _panel(
+    lines: list[str],
+    *,
+    use_color: bool,
+    title: str | None = None,
+) -> list[str]:
     """Wrap lines in a light terminal panel."""
     width = max(len(line) for line in lines)
     top = f"┌{'─' * (width + 2)}┐"
@@ -357,7 +368,10 @@ def _panel(lines: list[str], *, use_color: bool, title: str | None = None) -> li
     body = [f"│ {line.ljust(width)} │" for line in lines]
     if title:
         title_text = f" {title} "
-        top = f"┌{title_text}{'─' * max(0, width + 2 - len(title_text))}┐"
+        top = (
+            f"┌{title_text}"
+            f"{'─' * max(0, width + 2 - len(title_text))}┐"
+        )
     panel_lines = [top, *body, bottom]
     if not use_color:
         return panel_lines
@@ -375,7 +389,7 @@ def _render_interactive_maze_lines(
     grid = [list(line) for line in maze_lines]
 
     def junction_glyph(row: int, col: int) -> str:
-        """Pick the correct box-drawing junction from neighboring wall strokes."""
+        """Pick a box-drawing junction from neighboring wall strokes."""
         up = row > 0 and grid[row - 1][col] == _V_WALL
         down = row + 1 < len(grid) and grid[row + 1][col] == _V_WALL
         left = col > 0 and grid[row][col - 1] == _H_WALL
@@ -459,14 +473,24 @@ def _interactive_screen(
     )
 
     seed_text = cfg.seed if cfg.seed is not None else "random"
-    state_line = f"{cfg.width}x{cfg.height}   {_mode_label(cfg.perfect)}   seed {seed_text}"
+    state_line = (
+        f"{cfg.width}x{cfg.height}   {_mode_label(cfg.perfect)}"
+        f"   seed {seed_text}"
+    )
     progress_mode = "path visible" if show_path else "path hidden"
     progress_mode = "discovering" if discovered_cells else progress_mode
-    progress_mode = "tracing route" if path_sequence and not show_path else progress_mode
+    progress_mode = (
+        "tracing route"
+        if path_sequence and not show_path
+        else progress_mode
+    )
     summary_lines = [
         "A-Maze-ing terminal view",
         state_line,
-        f"mode {progress_mode}   palette {palette_index + 1}/{len(_WALL_COLORS)}",
+        (
+            f"mode {progress_mode}   palette "
+            f"{palette_index + 1}/{len(_WALL_COLORS)}"
+        ),
     ]
     if use_color:
         summary_lines = [
@@ -497,7 +521,11 @@ def _interactive_screen(
             for line in menu_lines
         ]
     summary_panel = _panel(summary_lines, use_color=use_color, title=" MAZE ")
-    controls_panel = _panel(menu_lines, use_color=use_color, title=" CONTROLS ")
+    controls_panel = _panel(
+        menu_lines,
+        use_color=use_color,
+        title=" CONTROLS ",
+    )
     return "\n".join([*summary_panel, "", *styled_maze, "", *controls_panel])
 
 
