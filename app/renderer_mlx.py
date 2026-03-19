@@ -23,7 +23,6 @@ def _choose_python() -> str:
         sys.executable,
         str(Path(sys.base_prefix) / "bin" / "python3"),
         str(Path(sys.base_prefix) / "bin" / "python"),
-        "/usr/bin/python3",
         "/opt/homebrew/bin/python3",
         "/opt/homebrew/bin/python3.14",
         "/opt/homebrew/bin/python3.13",
@@ -45,7 +44,11 @@ def _choose_python() -> str:
         seen.add(resolved)
         candidates.append(resolved)
     probe = (
-        "import tkinter\n"
+        "import tkinter as tk\n"
+        "root = tk.Tk()\n"
+        "root.withdraw()\n"
+        "root.update_idletasks()\n"
+        "root.destroy()\n"
         "print('ok')\n"
     )
     for candidate in candidates:
@@ -110,5 +113,6 @@ def draw_mlx_maze(maze: MazeGenerator, cfg: MazeConfig) -> None:
 
     if completed.returncode != 0:
         raise RuntimeError(
-            f"visual renderer exited with status {completed.returncode}"
+            f"visual renderer using '{python_bin}' exited with status "
+            f"{completed.returncode}"
         )
