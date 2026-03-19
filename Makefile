@@ -1,59 +1,61 @@
-PYTHON ?= python3
-VENV ?= .venv
-VENV_PYTHON := $(VENV)/bin/python
-APP ?= a_maze_ing.py
-CONFIG ?= config.txt
+VENV_NAME = .venv
 
-.DEFAULT_GOAL := help
+PYTHON = $(VENV_NAME)/bin/python3
+PIP = $(VENV_NAME)/bin/pip
 
-.PHONY: help build install run debug clean lint lint-strict
+MAIN_FILE = a_maze_ing.py
+CONFIG_FILE = config.txt
+REQ_FILE = requirements.txt
+OUTPUTS = outputs/
 
-$(VENV_PYTHON):
-	@printf "\n[build] creating virtual environment in %s\n" "$(VENV)"
-	$(PYTHON) -m venv $(VENV)
-	@printf "[build] virtual environment ready\n"
+all: install run
 
-build: $(VENV_PYTHON)
-	@printf "[build] activate with: source %s/bin/activate\n" "$(VENV)"
+build: $(VENV_NAME)/bin/activate
 
-help:
-	@printf "\nA-Maze-ing\n\n"
-	@printf "  %-12s %s\n" "make build" "Create .venv if missing"
-	@printf "  %-12s %s\n" "make run" "Run the maze app with \`$(CONFIG)\`"
-	@printf "  %-12s %s\n" "make debug" "Run the app in pdb"
-	@printf "  %-12s %s\n" "make install" "Install project and dev tools into .venv"
-	@printf "  %-12s %s\n" "make lint" "Run flake8 and mypy"
-	@printf "  %-12s %s\n" "make lint-strict" "Run flake8 and strict mypy"
-	@printf "  %-12s %s\n" "make clean" "Remove build and cache artifacts"
-	@printf "\n"
+install: $(VENV_NAME)/bin/activate $(OUTPUTS)
 
-install: build
-	@printf "\n[install] updating environment\n"
-	$(VENV_PYTHON) -m pip install --upgrade pip
-	$(VENV_PYTHON) -m pip install .
-	$(VENV_PYTHON) -m pip install build flake8 mypy
+$(OUTPUTS):
+	mkdir -p $(OUTPUTS)
 
-run: build
-	@printf "\n[run] launching maze with %s\n" "$(CONFIG)"
-	$(VENV_PYTHON) $(APP) $(CONFIG)
+$(VENV_NAME)/bin/activate: $(REQ_FILE)
+	@echo "Creating virtual environment and installing required dependencies..."
+	python3 -m venv $(VENV_NAME)
+	$(PIP) install --upgrade pip
+	$(PIP) install -r $(REQ_FILE)
+	$(PIP) install .
+	touch $(VENV_NAME)/bin/activate
 
-debug: build
-	@printf "\n[debug] starting pdb with %s\n" "$(CONFIG)"
-	$(VENV_PYTHON) -m pdb $(APP) $(CONFIG)
+run: install
+	@echo "Running..."
+	$(PYTHON) $(MAIN_FILE) $(CONFIG_FILE)
+
+debug: install
+	@echo "debugging..."
+	$(PYTHON) -m pdb $(MAIN_FILE) $(CONFIG_FILE)
+
+lint: install
+	@echo "Linting..."
+	@echo "Flake8: "
+	$(PYTHON) -m flake8 $(MAIN_FILE) app mazegen tests
+	@echo "Mypy: "
+	$(PYTHON) -m mypy $(MAIN_FILE) app mazegen tests --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+
+lint-strict: install
+	@echo "Linting strictly..."
+	@echo "Flake8: "
+	$(PYTHON) -m flake8 $(MAIN_FILE) app mazegen tests
+	@echo "Mypy: "
+	$(PYTHON) -m mypy $(MAIN_FILE) app mazegen tests --strict
 
 clean:
-	@printf "\n[clean] removing generated caches and build artifacts\n"
-	find . -type d -name "__pycache__" -prune -exec rm -rf {} +
-	find . -type d -name ".mypy_cache" -prune -exec rm -rf {} +
-	find . -type d -name ".pytest_cache" -prune -exec rm -rf {} +
-	rm -rf build dist *.egg-info
+	@echo "Cleaning temporary files..."
+	@find . -type d -name "__pycache__" -exec rm -rf {} +
+	@rm -rf outputs/
+	@rm -rf .mypy_cache
+	@rm -rf .pytest_cache
+	@rm -rf build
+	@rm -rf dist
+	@rm -rf *.egg-info
+	@rm -rf $(VENV_NAME)
 
-lint: build
-	@printf "\n[lint] running static checks\n"
-	$(VENV_PYTHON) -m flake8 .
-	$(VENV_PYTHON) -m mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
-
-lint-strict: build
-	@printf "\n[lint-strict] running strict static checks\n"
-	$(VENV_PYTHON) -m flake8 .
-	$(VENV_PYTHON) -m mypy . --strict
+.PHONY: all build install run debug clean lint lint-strict
