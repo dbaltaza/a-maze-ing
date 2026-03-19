@@ -16,9 +16,15 @@ except ImportError:
         / "python"
         / "src"
     )
-    if str(mlx_src) not in sys.path:
+    if mlx_src.exists() and str(mlx_src) not in sys.path:
         sys.path.insert(0, str(mlx_src))
-    from mlx import Mlx
+    try:
+        from mlx import Mlx
+    except ImportError as exc:
+        raise RuntimeError(
+            "MLX renderer requested but Python module 'mlx' is not available. "
+            "Install the MLX Python bindings or set RENDERER=ascii."
+        ) from exc
 
 from app.parser import MazeConfig
 from app.writer import write_output

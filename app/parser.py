@@ -30,7 +30,7 @@ class MazeConfig:
     output_file: str
     perfect: bool
     seed: int | None = None
-    renderer: str = "ascii"
+    renderer: str = "mlx"
 
 
 def _parse_int(value: str, key: str, *, line_no: int | None = None) -> int:
@@ -163,10 +163,10 @@ def load_config(path: str | Path) -> MazeConfig:
         if seed_raw.strip():
             seed = _parse_int(seed_raw, "SEED", line_no=seed_line)
 
-    renderer = "ascii"
+    renderer = "mlx"
     if "RENDERER" in raw_values:
         renderer_raw, renderer_line = raw_values["RENDERER"]
-        renderer = renderer_raw.strip().lower()
+        renderer = renderer_raw.strip().lower() or "mlx"
         if renderer not in {"ascii", "mlx"}:
             raise ConfigError(
                 f"RENDERER must be one of: ascii, mlx on line {renderer_line}"

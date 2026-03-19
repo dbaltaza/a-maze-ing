@@ -52,6 +52,8 @@ def _generate_and_write(
         from app.renderer_mlx import draw_mlx_maze
 
         draw_mlx_maze(generator, cfg)
+    else:
+        print(f"Maze successfully saved to {cfg.output_file}")
 
 
 def main(argv: list[str] | None = None) -> int:

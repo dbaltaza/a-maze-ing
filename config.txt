@@ -5,3 +5,4 @@ EXIT=24,14
 OUTPUT_FILE=maze_output.txt
 PERFECT=True
 SEED=42
+RENDERER=mlx
