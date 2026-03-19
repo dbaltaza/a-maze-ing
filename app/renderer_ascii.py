@@ -343,20 +343,27 @@ def _panel(
     use_color: bool,
     title: str | None = None,
 ) -> list[str]:
-    """Wrap lines in a light terminal panel."""
+    """Wrap lines in a clean terminal panel."""
+    if not lines:
+        return []
+
     width = max(len(line) for line in lines)
     top = f"┌{'─' * (width + 2)}┐"
     bottom = f"└{'─' * (width + 2)}┘"
     body = [f"│ {line.ljust(width)} │" for line in lines]
+
     if title:
-        title_text = f" {title} "
-        top = (
-            f"┌{title_text}"
-            f"{'─' * max(0, width + 2 - len(title_text))}┐"
-        )
+        title_text = f" {title.upper()} "
+        padding = width + 2 - len(title_text)
+        left = padding // 2
+        right = padding - left
+        top = f"┌{'─' * left}{title_text}{'─' * right}┐"
+
     panel_lines = [top, *body, bottom]
+
     if not use_color:
         return panel_lines
+
     return [f"{_PANEL_COLOR}{line}{_ANSI_RESET}" for line in panel_lines]
 
 
@@ -458,61 +465,61 @@ def _interactive_screen(
         use_color=use_color,
     )
 
+    # Build info section
     seed_text = cfg.seed if cfg.seed is not None else "random"
-    state_line = (
-        f"{cfg.width}x{cfg.height}   {_mode_label(cfg.perfect)}"
-        f"   seed {seed_text}"
-    )
-    progress_mode = "path visible" if show_path else "path hidden"
-    progress_mode = "discovering" if discovered_cells else progress_mode
-    progress_mode = (
-        "tracing route"
-        if path_sequence and not show_path
-        else progress_mode
-    )
-    summary_lines = [
-        "A-Maze-ing terminal view",
-        state_line,
-        (
-            f"mode {progress_mode}   palette "
-            f"{palette_index + 1}/{len(_WALL_COLORS)}"
-        ),
+    path_length = len(generator.path_moves())
+
+    view_mode = "hidden"
+    if show_path:
+        view_mode = "visible"
+    elif discovered_cells:
+        view_mode = "discovering"
+    elif path_sequence:
+        view_mode = "tracing"
+
+    info_lines = [
+        f"Size: {cfg.width}×{cfg.height}  Mode: {_mode_label(cfg.perfect)}  Seed: {seed_text}",
+        f"Path: {path_length} moves  View: {view_mode}  Palette: {palette_index + 1}/{len(_WALL_COLORS)}",
     ]
+
     if use_color:
-        summary_lines = [
-            f"{_ACCENT_COLOR}{summary_lines[0]}{_ANSI_RESET}",
-            f"{_TEXT_COLOR}{summary_lines[1]}{_ANSI_RESET}",
-            f"{_MUTED_COLOR}{summary_lines[2]}{_ANSI_RESET}",
+        info_lines = [
+            f"{_TEXT_COLOR}{info_lines[0]}{_ANSI_RESET}",
+            f"{_MUTED_COLOR}{info_lines[1]}{_ANSI_RESET}",
         ]
 
+    # Build menu section
+    path_action = "hide" if show_path else "show"
     menu_lines = [
-        f"1. {'Hide' if show_path else 'Show'} full path",
-        "2. Animate path discovery",
-        "3. Re-generate a new maze",
-        "4. Animate maze generation",
-        "5. Rotate maze colors",
-        "6. Quit",
-        f"Status: {status}",
-        "Choice (1-6): ",
+        f"[1] {path_action} solution",
+        "[2] animate discovery",
+        "[3] new maze",
+        "[4] animate generation",
+        "[5] cycle colors",
+        "[6] exit",
+        "",
+        f"status: {status}",
+        "",
+        "choice [1-6]: ",
     ]
+
     if use_color:
-        menu_lines = [
-            f"{_STATUS_COLOR}{line}{_ANSI_RESET}"
-            if line.startswith("Status:")
-            else (
-                f"{_MUTED_COLOR}{line}{_ANSI_RESET}"
-                if line != "Choice (1-6): "
-                else f"{_TEXT_COLOR}{line}{_ANSI_RESET}"
-            )
-            for line in menu_lines
-        ]
-    summary_panel = _panel(summary_lines, use_color=use_color, title=" MAZE ")
-    controls_panel = _panel(
-        menu_lines,
-        use_color=use_color,
-        title=" CONTROLS ",
-    )
-    return "\n".join([*summary_panel, "", *styled_maze, "", *controls_panel])
+        colored_menu = []
+        for line in menu_lines:
+            if line.startswith("status:"):
+                colored_menu.append(f"{_STATUS_COLOR}{line}{_ANSI_RESET}")
+            elif line.startswith("choice"):
+                colored_menu.append(f"{_ACCENT_COLOR}{line}{_ANSI_RESET}")
+            elif line.startswith("["):
+                colored_menu.append(f"{_MUTED_COLOR}{line}{_ANSI_RESET}")
+            else:
+                colored_menu.append(line)
+        menu_lines = colored_menu
+
+    info_panel = _panel(info_lines, use_color=use_color, title="maze")
+    controls_panel = _panel(menu_lines, use_color=use_color, title="controls")
+
+    return "\n".join([*info_panel, "", *styled_maze, "", *controls_panel])
 
 
 def run_ascii_ui(

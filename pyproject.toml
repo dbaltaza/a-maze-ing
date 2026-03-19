@@ -1,7 +1,6 @@
 [build-system]
-requires = ["tomli; python_version < '3.11'"]
-build-backend = "mazegen.build_backend"
-backend-path = ["."]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "mazegen-a-maze-ing"
@@ -13,5 +12,8 @@ dependencies = [
   "pydantic>=2,<3",
 ]
 authors = [
-  { name = "luispais" },
+  { name = "luispais" }, {name = "dbaltaza"},
 ]
+
+[tool.setuptools]
+packages = ["mazegen"]
