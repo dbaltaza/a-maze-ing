@@ -12,17 +12,18 @@ all: install run
 
 build: $(VENV_NAME)/bin/activate
 
-install: $(VENV_NAME)/bin/activate $(OUTPUTS)
+install: build $(OUTPUTS)
+	@echo "Installing required dependencies..."
+	$(PIP) install --upgrade pip
+	$(PIP) install -r $(REQ_FILE)
+	$(PIP) install .
 
 $(OUTPUTS):
 	mkdir -p $(OUTPUTS)
 
-$(VENV_NAME)/bin/activate: $(REQ_FILE)
-	@echo "Creating virtual environment and installing required dependencies..."
+$(VENV_NAME)/bin/activate:
+	@echo "Creating virtual environment..."
 	python3 -m venv $(VENV_NAME)
-	$(PIP) install --upgrade pip
-	$(PIP) install -r $(REQ_FILE)
-	$(PIP) install .
 	touch $(VENV_NAME)/bin/activate
 
 run: install
