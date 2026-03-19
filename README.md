@@ -9,9 +9,9 @@ A-Maze-ing is a Python maze generator that reads a text configuration file, buil
 The project is split into two parts:
 
 - `mazegen/`: reusable maze generation and solving logic
-- `app/`: configuration parsing, rendering, and application-level error handling
+- `app/`: configuration parsing, ASCII rendering, and application-level error handling
 
-The main program is `a_maze_ing.py`. It validates the input configuration, generates the maze, exports it to the configured output file, and launches the terminal renderer.
+The main program is `a_maze_ing.py`. It validates the input configuration, generates the maze, exports it to the configured output file, and launches the terminal ASCII renderer.
 
 ## Instructions
 
@@ -92,7 +92,7 @@ Optional keys supported by this implementation:
 
 ```ini
 SEED=42
-RENDERER=auto
+RENDERER=ascii
 GENERATE_DELAY_MS=120
 SOLVE_DELAY_MS=100
 ```
@@ -128,7 +128,7 @@ Field meaning:
 - `OUTPUT_FILE`: destination file for the hexadecimal export
 - `PERFECT`: `True` for a perfect maze, `False` to add loops
 - `SEED`: optional deterministic seed
-- `RENDERER`: `auto`, `ascii`, or `curses`
+- `RENDERER`: optional renderer selector, currently ASCII only
 - `GENERATE_DELAY_MS`: generation animation delay in milliseconds
 - `SOLVE_DELAY_MS`: solve animation delay in milliseconds
 
@@ -233,7 +233,6 @@ This implementation includes several features beyond the minimum generation/expo
 - deterministic generation with `SEED`
 - perfect and non-perfect modes
 - terminal ASCII rendering
-- curses terminal rendering when available
 - show/hide shortest path
 - maze regeneration from the UI
 - wall color cycling in the terminal UI
@@ -245,7 +244,7 @@ This implementation includes several features beyond the minimum generation/expo
 ### Roles
 
 - `dbaltaza`: maze engine, generation logic, pathfinding, validation
-- `luispais`: application layer, configuration parsing, terminal rendering, user interaction
+- `luispais`: application layer, configuration parsing, ASCII rendering, user interaction
 
 ### Anticipated planning and evolution
 
@@ -255,7 +254,7 @@ The work can be described in the following phases:
 2. parse and validate the configuration file
 3. implement maze generation
 4. implement pathfinding and output export
-5. add renderers and user interaction
+5. add the terminal renderer and user interaction
 6. package the reusable code and finalize documentation
 
 As the project evolved, validation became a larger part of the work than the initial generation logic alone. The subject combines multiple constraints at once: coherent walls, closed borders, connectivity, a visible `42` pattern, shortest-path export, and optional perfect-maze behavior. Because of that, the codebase ended up with a clear validation layer and a stricter parser than a simpler prototype would need.
@@ -264,7 +263,7 @@ As the project evolved, validation became a larger part of the work than the ini
 
 - separating `mazegen` from `app`
 - using a dedicated validation module
-- keeping the generator reusable instead of coupling it to terminal rendering
+- keeping the generator reusable instead of coupling it to rendering
 - using type hints and docstrings throughout the project
 
 ### What could be improved
@@ -292,7 +291,6 @@ Classic references used for the project:
 - `dataclasses`: https://docs.python.org/3/library/dataclasses.html
 - `typing`: https://docs.python.org/3/library/typing.html
 - `pathlib`: https://docs.python.org/3/library/pathlib.html
-- `curses`: https://docs.python.org/3/library/curses.html
 - `setuptools` packaging guide: https://setuptools.pypa.io/
 - Python packaging user guide: https://packaging.python.org/
 - `flake8` documentation: https://flake8.pycqa.org/

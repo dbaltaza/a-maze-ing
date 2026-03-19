@@ -263,7 +263,7 @@ class ParserTests(unittest.TestCase):
             load_config(config_path)
 
     def test_load_config_rejects_invalid_renderer(self) -> None:
-        """Renderer should only accept the documented values."""
+        """Renderer should reject values outside the ASCII-only mode."""
         config_path = self._write_config(
             [
                 "WIDTH=9",
@@ -273,6 +273,23 @@ class ParserTests(unittest.TestCase):
                 "OUTPUT_FILE=maze.txt",
                 "PERFECT=True",
                 "RENDERER=gl",
+            ]
+        )
+
+        with self.assertRaisesRegex(ConfigError, "RENDERER must be one of"):
+            load_config(config_path)
+
+    def test_load_config_rejects_removed_curses_renderer(self) -> None:
+        """The removed curses renderer should be rejected explicitly."""
+        config_path = self._write_config(
+            [
+                "WIDTH=9",
+                "HEIGHT=7",
+                "ENTRY=0,0",
+                "EXIT=8,6",
+                "OUTPUT_FILE=maze.txt",
+                "PERFECT=True",
+                "RENDERER=curses",
             ]
         )
 
@@ -372,6 +389,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(cfg.width, 9)
         self.assertEqual(cfg.exit, (8, 6))
         self.assertTrue(cfg.perfect)
+        self.assertEqual(cfg.renderer, "ascii")
 
 
 class GeneratorTests(unittest.TestCase):

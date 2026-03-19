@@ -11,7 +11,3 @@ class ConfigError(ValueError):
 
 class OutputError(AppError):
     """Raised when output file writing fails."""
-
-
-class RenderError(AppError):
-    """Raised when rendering fails."""

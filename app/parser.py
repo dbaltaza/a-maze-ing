@@ -18,7 +18,7 @@ _OPTIONAL_KEYS = {
     "SOLVE_DELAY_MS",
 }
 _KNOWN_KEYS = _REQUIRED_KEYS | _OPTIONAL_KEYS
-_RENDERERS = {"auto", "ascii", "curses"}
+_RENDERERS = {"ascii"}
 _INT_MIN = -(2**31)
 _INT_MAX = 2**31 - 1
 _INT_PATTERN = re.compile(r"^[+-]?\d+$")
@@ -36,7 +36,7 @@ class MazeConfig(BaseModel):
     output_file: str
     perfect: bool
     seed: int | None = None
-    renderer: str = "auto"
+    renderer: str = "ascii"
     generate_delay_ms: int = 8
     solve_delay_ms: int = 25
 
@@ -45,7 +45,8 @@ class MazeConfig(BaseModel):
     def _validate_dimensions(cls, value: int, info: ValidationInfo) -> int:
         """Require strictly positive maze dimensions."""
         if value <= 0:
-            raise ValueError(f"{info.field_name.upper()} must be > 0")
+            field_name = (info.field_name or "value").upper()
+            raise ValueError(f"{field_name} must be > 0")
         return value
 
     @field_validator("output_file")
@@ -61,7 +62,7 @@ class MazeConfig(BaseModel):
     @classmethod
     def _validate_renderer(cls, value: str) -> str:
         """Normalize and validate the configured renderer name."""
-        renderer = value.strip().lower() or "auto"
+        renderer = value.strip().lower() or "ascii"
         if renderer not in _RENDERERS:
             raise ValueError(
                 f"RENDERER must be one of {', '.join(sorted(_RENDERERS))}"
@@ -73,7 +74,8 @@ class MazeConfig(BaseModel):
     def _validate_delays(cls, value: int, info: ValidationInfo) -> int:
         """Require non-negative animation delays."""
         if value < 0:
-            raise ValueError(f"{info.field_name.upper()} must be >= 0")
+            field_name = (info.field_name or "value").upper()
+            raise ValueError(f"{field_name} must be >= 0")
         return value
 
     @model_validator(mode="after")
@@ -218,7 +220,7 @@ def load_config(path: str | Path) -> MazeConfig:
         renderer_raw, _renderer_line = raw_values["RENDERER"]
         renderer = renderer_raw
     else:
-        renderer = "auto"
+        renderer = "ascii"
 
     generate_delay_ms = 8
     if "GENERATE_DELAY_MS" in raw_values:

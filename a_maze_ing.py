@@ -6,10 +6,9 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-from app.errors import ConfigError, OutputError, RenderError
+from app.errors import ConfigError, OutputError
 from app.parser import MazeConfig, load_config
 from app.renderer_ascii import run_ascii_ui
-from app.renderer_curses import run_curses_ui
 from mazegen import MazeGenerator, write_output
 
 
@@ -72,45 +71,8 @@ def _run_renderer(
     generator: MazeGenerator,
     regenerate_and_save: Callable[[Callable[[], None] | None], None],
 ) -> None:
-    """Run the requested renderer with ASCII fallback when needed."""
-    requested = cfg.renderer
-
-    if requested == "ascii":
-        _announce_renderer("ascii", detail="requested")
-        run_ascii_ui(
-            cfg,
-            generator,
-            regenerate_and_save,
-            generate_delay_ms=cfg.generate_delay_ms,
-            solve_delay_ms=cfg.solve_delay_ms,
-        )
-        return
-
-    if requested == "curses":
-        _announce_renderer("curses", detail="requested")
-        run_curses_ui(
-            cfg,
-            generator,
-            regenerate=regenerate_and_save,
-            generate_delay_ms=cfg.generate_delay_ms,
-            solve_delay_ms=cfg.solve_delay_ms,
-        )
-        return
-
-    try:
-        _announce_renderer("curses", detail="auto")
-        run_curses_ui(
-            cfg,
-            generator,
-            regenerate=regenerate_and_save,
-            generate_delay_ms=cfg.generate_delay_ms,
-            solve_delay_ms=cfg.solve_delay_ms,
-        )
-        return
-    except RenderError as exc:
-        print(f"Warning: curses unavailable: {exc}", file=sys.stderr)
-
-    _announce_renderer("ascii", detail="auto fallback")
+    """Run the ASCII renderer."""
+    _announce_renderer("ascii")
     run_ascii_ui(
         cfg,
         generator,
@@ -143,7 +105,6 @@ def main(argv: list[str] | None = None) -> int:
     except (
         ConfigError,
         OutputError,
-        RenderError,
         RuntimeError,
         ValueError,
     ) as exc:
