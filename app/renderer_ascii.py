@@ -477,9 +477,13 @@ def _interactive_screen(
     elif path_sequence:
         view_mode = "tracing"
 
+    mode_text = _mode_label(cfg.perfect)
+    palette_text = f"{palette_index + 1}/{len(_WALL_COLORS)}"
     info_lines = [
-        f"Size: {cfg.width}×{cfg.height}  Mode: {_mode_label(cfg.perfect)}  Seed: {seed_text}",
-        f"Path: {path_length} moves  View: {view_mode}  Palette: {palette_index + 1}/{len(_WALL_COLORS)}",
+        f"Size: {cfg.width}×{cfg.height}  Mode: {mode_text}  "
+        f"Seed: {seed_text}",
+        f"Path: {path_length} moves  View: {view_mode}  "
+        f"Palette: {palette_text}",
     ]
 
     if use_color:
