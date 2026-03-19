@@ -70,6 +70,8 @@ The project is architecturally split into two main components:
 
 ### Install via Makefile
 ```bash
+make build
+source .venv/bin/activate
 make install
 ```
 
@@ -102,6 +104,7 @@ python3 a_maze_ing.py config.txt
 
 ### Using Makefile
 ```bash
+make build      # Create .venv if missing
 make run        # Run with default config
 make debug      # Run with debugger
 make clean      # Clean build artifacts

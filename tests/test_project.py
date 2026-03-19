@@ -7,7 +7,6 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -15,7 +14,6 @@ if str(ROOT) not in sys.path:
 
 from app.errors import ConfigError  # noqa: E402
 from app.parser import _INT_MAX, load_config  # noqa: E402
-from app.renderer_ascii import build_ascii_lines, render_ascii, run_ascii_ui  # noqa: E402
 from mazegen import MazeGenerator  # noqa: E402
 
 
@@ -116,7 +114,7 @@ class ParserTests(unittest.TestCase):
         return config_path
 
     def test_load_config_accepts_optional_keys(self) -> None:
-        """Parser should read every documented optional setting."""
+        """Parser should read the supported optional settings."""
         config_text = "\n".join(
             [
                 "WIDTH=9",
@@ -126,9 +124,7 @@ class ParserTests(unittest.TestCase):
                 "OUTPUT_FILE=maze.txt",
                 "PERFECT=False",
                 "SEED=42",
-                "RENDERER=ascii",
-                "GENERATE_DELAY_MS=5",
-                "SOLVE_DELAY_MS=7",
+                "RENDERER=mlx",
             ]
         )
 
@@ -140,9 +136,27 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(cfg.width, 9)
         self.assertEqual(cfg.height, 7)
         self.assertFalse(cfg.perfect)
-        self.assertEqual(cfg.renderer, "ascii")
-        self.assertEqual(cfg.generate_delay_ms, 5)
-        self.assertEqual(cfg.solve_delay_ms, 7)
+        self.assertEqual(cfg.seed, 42)
+        self.assertEqual(cfg.renderer, "mlx")
+
+    def test_load_config_rejects_unknown_renderer(self) -> None:
+        """Renderer must stay within the supported modes."""
+        config_path = self._write_config(
+            [
+                "WIDTH=9",
+                "HEIGHT=7",
+                "ENTRY=0,0",
+                "EXIT=8,6",
+                "OUTPUT_FILE=maze.txt",
+                "PERFECT=True",
+                "RENDERER=auto",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ConfigError, "RENDERER must be one of: ascii, mlx"
+        ):
+            load_config(config_path)
 
     def test_load_config_rejects_float_values(self) -> None:
         """Float-like values should not be accepted as integers."""
@@ -241,42 +255,6 @@ class ParserTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             ConfigError, "PERFECT must be a boolean value"
-        ):
-            load_config(config_path)
-
-    def test_load_config_rejects_invalid_renderer(self) -> None:
-        """Renderer should only accept the documented values."""
-        config_path = self._write_config(
-            [
-                "WIDTH=9",
-                "HEIGHT=7",
-                "ENTRY=0,0",
-                "EXIT=8,6",
-                "OUTPUT_FILE=maze.txt",
-                "PERFECT=True",
-                "RENDERER=gl",
-            ]
-        )
-
-        with self.assertRaisesRegex(ConfigError, "RENDERER must be one of"):
-            load_config(config_path)
-
-    def test_load_config_rejects_negative_delay(self) -> None:
-        """Animation delays should reject negative values."""
-        config_path = self._write_config(
-            [
-                "WIDTH=9",
-                "HEIGHT=7",
-                "ENTRY=0,0",
-                "EXIT=8,6",
-                "OUTPUT_FILE=maze.txt",
-                "PERFECT=True",
-                "GENERATE_DELAY_MS=-1",
-            ]
-        )
-
-        with self.assertRaisesRegex(
-            ConfigError, "GENERATE_DELAY_MS must be >= 0"
         ):
             load_config(config_path)
 
@@ -465,96 +443,6 @@ class GeneratorTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "cell out of bounds"):
             generator.get_cell_walls(9, 0)
-
-
-class AsciiRendererTests(unittest.TestCase):
-    """Keep the fallback renderer plain-text safe and usable."""
-
-    def _build_generator(self) -> tuple[object, MazeGenerator]:
-        """Create a generated maze using the default project config."""
-        cfg = load_config(ROOT / "config.txt")
-        generator = MazeGenerator(
-            cfg.width,
-            cfg.height,
-            cfg.entry,
-            cfg.exit,
-            cfg.perfect,
-            cfg.seed,
-        )
-        generator.generate()
-        return cfg, generator
-
-    def test_build_ascii_lines_uses_plain_ascii_only(self) -> None:
-        """Maze canvas should stay restricted to ASCII characters."""
-        cfg, generator = self._build_generator()
-
-        maze_lines = build_ascii_lines(cfg, generator, show_path=True)
-
-        self.assertEqual(len(maze_lines), cfg.height * 2 + 1)
-        self.assertTrue(all(line.isascii() for line in maze_lines))
-        self.assertTrue(any("S" in line for line in maze_lines))
-        self.assertTrue(any("G" in line for line in maze_lines))
-        self.assertTrue(any("." in line for line in maze_lines))
-        self.assertTrue(any("#" in line for line in maze_lines))
-
-    def test_build_ascii_lines_can_render_discovered_cells(self) -> None:
-        """Discovery frames should expose explored cells distinctly."""
-        cfg, generator = self._build_generator()
-
-        maze_lines = build_ascii_lines(
-            cfg,
-            generator,
-            discovered_cells={cfg.entry, (1, 0)},
-        )
-
-        self.assertTrue(any("o" in line for line in maze_lines))
-
-    def test_render_ascii_returns_ascii_panels_and_maze(self) -> None:
-        """Static ASCII render should avoid Unicode box-drawing glyphs."""
-        cfg, generator = self._build_generator()
-
-        rendered = render_ascii(cfg, generator, show_path=False)
-
-        self.assertTrue(rendered.isascii())
-        self.assertIn("A-Maze-ing", rendered)
-        self.assertIn("plain ASCII fallback", rendered)
-
-    def test_run_ascii_ui_falls_back_to_static_render_without_tty(self) -> None:
-        """ASCII UI should not prompt when stdin/stdout are not terminals."""
-        cfg, generator = self._build_generator()
-
-        with patch("sys.stdin.isatty", return_value=False):
-            with patch("sys.stdout.isatty", return_value=False):
-                with patch("builtins.input") as fake_input:
-                    run_ascii_ui(cfg, generator, regenerate=None)
-
-        fake_input.assert_not_called()
-
-    def test_run_ascii_ui_generates_before_static_render_when_needed(self) -> None:
-        """ASCII fallback should lazily generate if no maze exists yet."""
-        cfg = load_config(ROOT / "config.txt")
-        generator = MazeGenerator(
-            cfg.width,
-            cfg.height,
-            cfg.entry,
-            cfg.exit,
-            cfg.perfect,
-            cfg.seed,
-        )
-
-        def regenerate(
-            on_step: object | None = None,
-        ) -> None:
-            self.assertIsNone(on_step)
-            generator.generate()
-
-        with patch("sys.stdin.isatty", return_value=False):
-            with patch("sys.stdout.isatty", return_value=False):
-                with patch("builtins.input") as fake_input:
-                    run_ascii_ui(cfg, generator, regenerate=regenerate)
-
-        fake_input.assert_not_called()
-        self.assertTrue(generator.to_hex_lines())
 
 
 if __name__ == "__main__":

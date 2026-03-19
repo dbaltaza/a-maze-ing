@@ -12,11 +12,8 @@ _REQUIRED_KEYS = {"WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE", "PERFECT"}
 _OPTIONAL_KEYS = {
     "SEED",
     "RENDERER",
-    "GENERATE_DELAY_MS",
-    "SOLVE_DELAY_MS",
 }
 _KNOWN_KEYS = _REQUIRED_KEYS | _OPTIONAL_KEYS
-_RENDERERS = {"auto", "ascii", "curses"}
 _INT_MIN = -(2**31)
 _INT_MAX = 2**31 - 1
 _INT_PATTERN = re.compile(r"^[+-]?\d+$")
@@ -33,9 +30,7 @@ class MazeConfig:
     output_file: str
     perfect: bool
     seed: int | None = None
-    renderer: str = "auto"
-    generate_delay_ms: int = 8
-    solve_delay_ms: int = 25
+    renderer: str = "ascii"
 
 
 def _parse_int(value: str, key: str, *, line_no: int | None = None) -> int:
@@ -168,34 +163,14 @@ def load_config(path: str | Path) -> MazeConfig:
         if seed_raw.strip():
             seed = _parse_int(seed_raw, "SEED", line_no=seed_line)
 
+    renderer = "ascii"
     if "RENDERER" in raw_values:
         renderer_raw, renderer_line = raw_values["RENDERER"]
-        renderer = renderer_raw.strip().lower() or "auto"
-        if renderer not in _RENDERERS:
+        renderer = renderer_raw.strip().lower()
+        if renderer not in {"ascii", "mlx"}:
             raise ConfigError(
-                f"RENDERER must be one of {', '.join(sorted(_RENDERERS))}"
-                f" on line {renderer_line}"
+                f"RENDERER must be one of: ascii, mlx on line {renderer_line}"
             )
-    else:
-        renderer = "auto"
-
-    generate_delay_ms = 8
-    if "GENERATE_DELAY_MS" in raw_values:
-        delay_raw, delay_line = raw_values["GENERATE_DELAY_MS"]
-        generate_delay_ms = _parse_int(
-            delay_raw, "GENERATE_DELAY_MS", line_no=delay_line
-        )
-        if generate_delay_ms < 0:
-            raise ConfigError("GENERATE_DELAY_MS must be >= 0")
-
-    solve_delay_ms = 25
-    if "SOLVE_DELAY_MS" in raw_values:
-        delay_raw, delay_line = raw_values["SOLVE_DELAY_MS"]
-        solve_delay_ms = _parse_int(
-            delay_raw, "SOLVE_DELAY_MS", line_no=delay_line
-        )
-        if solve_delay_ms < 0:
-            raise ConfigError("SOLVE_DELAY_MS must be >= 0")
 
     return MazeConfig(
         width=width,
@@ -206,6 +181,4 @@ def load_config(path: str | Path) -> MazeConfig:
         perfect=perfect,
         seed=seed,
         renderer=renderer,
-        generate_delay_ms=generate_delay_ms,
-        solve_delay_ms=solve_delay_ms,
     )

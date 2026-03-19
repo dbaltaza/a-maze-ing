@@ -173,3 +173,33 @@ class MazeGenerator:
         """Return a copy of the blocked cells used to draw the 42 pattern."""
         self._ensure_generated()
         return set(self._blocked)
+
+    @property
+    def width(self) -> int:
+        """Return the configured maze width."""
+        return self._width
+
+    @property
+    def height(self) -> int:
+        """Return the configured maze height."""
+        return self._height
+
+    @property
+    def entry(self) -> tuple[int, int]:
+        """Return the configured entry coordinate."""
+        return self._entry
+
+    @property
+    def exit(self) -> tuple[int, int]:
+        """Return the configured exit coordinate."""
+        return self._exit
+
+    @property
+    def perfect(self) -> bool:
+        """Return whether the generator is configured for a perfect maze."""
+        return self._perfect
+
+    @property
+    def seed(self) -> int | None:
+        """Return the configured random seed."""
+        return self._seed
