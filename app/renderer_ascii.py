@@ -14,7 +14,7 @@ N = 1
 E = 2
 S = 4
 W = 8
-CELL_W = 3
+CELL_W = 2
 _H_WALL = "-"
 _V_WALL = "|"
 _CORNER = "+"
@@ -95,6 +95,58 @@ def _interior_center(x: int, y: int) -> tuple[int, int]:
     return (y * 2 + 1, x * (CELL_W + 1) + 2)
 
 
+def _cell_bounds(x: int, y: int) -> tuple[int, int, int, int, int, int]:
+    """Return canvas bounds and center for one logical cell."""
+    step = CELL_W + 1
+    left = x * step
+    top = y * 2
+    return (left, left + step, top, top + 2, top + 1, left + 2)
+
+
+def _fill_span(canvas: list[list[str]], row: int, start: int, char: str) -> None:
+    """Fill a horizontal cell interior span with one character."""
+    for offset in range(1, CELL_W + 1):
+        canvas[row][start + offset] = char
+
+
+def _resolve_path_sequence(
+    cfg: MazeConfig,
+    generator: GeneratorLike,
+    *,
+    show_path: bool,
+    path_sequence: list[tuple[int, int]] | None,
+) -> list[tuple[int, int]]:
+    """Return the path sequence that should be drawn for this frame."""
+    if path_sequence is not None:
+        return list(path_sequence)
+    if show_path:
+        return _path_sequence(cfg.entry, generator.path_moves())
+    return []
+
+
+def _draw_path_segment(
+    canvas: list[list[str]],
+    current: tuple[int, int],
+    nxt: tuple[int, int],
+) -> None:
+    """Draw one path segment between two adjacent cells."""
+    cur_row, cur_col = _interior_center(*current)
+    next_row, next_col = _interior_center(*nxt)
+    canvas[cur_row][cur_col] = _PATH
+    canvas[next_row][next_col] = _PATH
+    if cur_row == next_row:
+        start = min(cur_col, next_col)
+        end = max(cur_col, next_col)
+        for col in range(start + 1, end):
+            canvas[cur_row][col] = _PATH
+        return
+
+    start = min(cur_row, next_row)
+    end = max(cur_row, next_row)
+    for row in range(start + 1, end):
+        canvas[row][cur_col] = _PATH
+
+
 def _bfs_discovery(
     cfg: MazeConfig,
     generator: GeneratorLike,
@@ -167,24 +219,17 @@ def build_ascii_lines(
 
     blocked = generator.blocked_cells
     active_discovered = discovered_cells or set()
-    if path_sequence is not None:
-        active_path_sequence = list(path_sequence)
-    elif show_path:
-        active_path_sequence = _path_sequence(
-            cfg.entry,
-            generator.path_moves(),
-        )
-    else:
-        active_path_sequence = []
+    active_path_sequence = _resolve_path_sequence(
+        cfg,
+        generator,
+        show_path=show_path,
+        path_sequence=path_sequence,
+    )
 
     for y in range(cfg.height):
         for x in range(cfg.width):
             walls = generator.get_cell_walls(x, y)
-            center_row, center_col = _interior_center(x, y)
-            left = x * (CELL_W + 1)
-            right = left + CELL_W + 1
-            top = y * 2
-            bottom = top + 2
+            left, right, top, bottom, center_row, _center_col = _cell_bounds(x, y)
 
             draw_north = bool(walls & N)
             draw_south = bool(walls & S)
@@ -202,34 +247,26 @@ def build_ascii_lines(
                     draw_east = False
 
             if draw_north:
-                for offset in range(1, CELL_W + 1):
-                    canvas[top][left + offset] = _H_WALL
+                _fill_span(canvas, top, left, _H_WALL)
             if draw_south:
-                for offset in range(1, CELL_W + 1):
-                    canvas[bottom][left + offset] = _H_WALL
+                _fill_span(canvas, bottom, left, _H_WALL)
             if draw_west:
                 canvas[center_row][left] = _V_WALL
             if draw_east:
                 canvas[center_row][right] = _V_WALL
 
             if (x, y) in blocked:
-                for offset in range(1, CELL_W + 1):
-                    canvas[center_row][left + offset] = _BLOCKED
+                _fill_span(canvas, center_row, left, _BLOCKED)
             elif (x, y) in active_discovered:
-                for offset in range(1, CELL_W + 1):
-                    canvas[center_row][left + offset] = _DISCOVERED
+                _fill_span(canvas, center_row, left, _DISCOVERED)
 
     # Merge adjacent blocked cells into one solid filled 42 shape.
     for x, y in blocked:
-        left = x * (CELL_W + 1)
-        right = left + CELL_W + 1
-        top = y * 2
-        bottom = top + 2
+        left, right, top, bottom, _center_row, _center_col = _cell_bounds(x, y)
         if (x + 1, y) in blocked:
             canvas[top + 1][right] = _BLOCKED
         if (x, y + 1) in blocked:
-            for offset in range(1, CELL_W + 1):
-                canvas[bottom][left + offset] = _BLOCKED
+            _fill_span(canvas, bottom, left, _BLOCKED)
         if (
             (x + 1, y) in blocked
             and (x, y + 1) in blocked
@@ -238,24 +275,8 @@ def build_ascii_lines(
             canvas[bottom][right] = _BLOCKED
 
     if active_path_sequence:
-        for current, nxt in zip(
-            active_path_sequence,
-            active_path_sequence[1:],
-        ):
-            cur_row, cur_col = _interior_center(*current)
-            next_row, next_col = _interior_center(*nxt)
-            canvas[cur_row][cur_col] = _PATH
-            canvas[next_row][next_col] = _PATH
-            if cur_row == next_row:
-                start = min(cur_col, next_col)
-                end = max(cur_col, next_col)
-                for col in range(start + 1, end):
-                    canvas[cur_row][col] = _PATH
-            else:
-                start = min(cur_row, next_row)
-                end = max(cur_row, next_row)
-                for row in range(start + 1, end):
-                    canvas[row][cur_col] = _PATH
+        for current, nxt in zip(active_path_sequence, active_path_sequence[1:]):
+            _draw_path_segment(canvas, current, nxt)
 
     start_row, start_col = _interior_center(*cfg.entry)
     goal_row, goal_col = _interior_center(*cfg.exit)
