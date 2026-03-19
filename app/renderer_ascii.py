@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import sys
 import time
-from collections import deque
 from typing import Callable, Protocol
 
 from .parser import MazeConfig
@@ -70,6 +69,11 @@ class GeneratorLike(Protocol):
 
     def path_moves(self) -> str:
         """Return shortest path as NESW moves."""
+
+    def solve_with_discovery(
+        self,
+    ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+        """Return BFS discovery order and the shortest path."""
 
 
 def _path_sequence(
@@ -150,59 +154,6 @@ def _draw_path_segment(
     end = max(cur_row, next_row)
     for row in range(start + 1, end):
         canvas[row][cur_col] = _PATH
-
-
-def _bfs_discovery(
-    cfg: MazeConfig,
-    generator: GeneratorLike,
-) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
-    """Return BFS visit order and the shortest path to the goal."""
-    blocked = generator.blocked_cells
-    start = cfg.entry
-    goal = cfg.exit
-    if start in blocked or goal in blocked:
-        return ([], [])
-
-    queue: deque[tuple[int, int]] = deque([start])
-    prev: dict[tuple[int, int], tuple[int, int] | None] = {start: None}
-    order: list[tuple[int, int]] = []
-    deltas = {
-        N: (0, -1),
-        E: (1, 0),
-        S: (0, 1),
-        W: (-1, 0),
-    }
-
-    while queue:
-        x, y = queue.popleft()
-        current = (x, y)
-        order.append(current)
-        if current == goal:
-            break
-
-        walls = generator.get_cell_walls(x, y)
-        for bit, (dx, dy) in deltas.items():
-            if walls & bit:
-                continue
-            nxt = (x + dx, y + dy)
-            nx, ny = nxt
-            if not (0 <= nx < cfg.width and 0 <= ny < cfg.height):
-                continue
-            if nxt in blocked or nxt in prev:
-                continue
-            prev[nxt] = current
-            queue.append(nxt)
-
-    if goal not in prev:
-        return (order, [])
-
-    path: list[tuple[int, int]] = []
-    cur: tuple[int, int] | None = goal
-    while cur is not None:
-        path.append(cur)
-        cur = prev[cur]
-    path.reverse()
-    return (order, path)
 
 
 def build_ascii_lines(
@@ -605,7 +556,7 @@ def run_ascii_ui(
         animated_path = []
         discovered_cells = set()
         try:
-            order, sequence = _bfs_discovery(cfg, generator)
+            order, sequence = generator.solve_with_discovery()
             for index in range(1, len(order) + 1):
                 discovered_cells = set(order[:index])
                 _draw("Discovering reachable paths...")

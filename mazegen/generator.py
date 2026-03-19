@@ -7,7 +7,7 @@ from typing import Callable
 
 from .algorithms import add_loops, generate_perfect_dfs
 from .maze import Maze
-from .pathfinding import bfs_shortest_path, path_to_moves
+from .pathfinding import bfs_discovery_path, bfs_shortest_path, path_to_moves
 from .validate import validate_all
 
 
@@ -144,6 +144,18 @@ class MazeGenerator:
                 maze, self._blocked, self._entry, self._exit
             )
         return list(self._shortest_path)
+
+    def solve_with_discovery(
+        self,
+    ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+        """Return BFS discovery order and the shortest path."""
+        maze = self._ensure_generated()
+        return bfs_discovery_path(
+            maze,
+            self._blocked,
+            self._entry,
+            self._exit,
+        )
 
     def path_moves(self) -> str:
         """Return the shortest path as NESW letters."""

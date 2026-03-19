@@ -45,6 +45,47 @@ def bfs_shortest_path(
     return path
 
 
+def bfs_discovery_path(
+    maze: Maze,
+    blocked: set[tuple[int, int]],
+    start: tuple[int, int],
+    goal: tuple[int, int],
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """Return BFS discovery order together with the final shortest path."""
+    if start in blocked or goal in blocked:
+        return ([], [])
+
+    q: deque[tuple[int, int]] = deque([start])
+    prev: dict[tuple[int, int], tuple[int, int] | None] = {start: None}
+    order: list[tuple[int, int]] = []
+
+    while q:
+        x, y = q.popleft()
+        current = (x, y)
+        order.append(current)
+        if current == goal:
+            break
+        for direction, nx, ny in maze.neighbors(x, y):
+            nxt = (nx, ny)
+            if nxt in blocked or nxt in prev:
+                continue
+            if maze.has_wall(x, y, direction):
+                continue
+            prev[nxt] = current
+            q.append(nxt)
+
+    if goal not in prev:
+        return (order, [])
+
+    path: list[tuple[int, int]] = []
+    cur: tuple[int, int] | None = goal
+    while cur is not None:
+        path.append(cur)
+        cur = prev[cur]
+    path.reverse()
+    return (order, path)
+
+
 def path_to_moves(path: list[tuple[int, int]]) -> str:
     """Convert a coordinate path into NESW letters."""
     if len(path) < 2:
